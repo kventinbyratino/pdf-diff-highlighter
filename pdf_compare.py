@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import base64
 import difflib
-import html
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import fitz  # PyMuPDF
 from PIL import Image, ImageChops, ImageStat
+
+
+@dataclass
+class TextChange:
+    source: str = ""
+    changed: str = ""
+    kind: str = ""
 
 
 @dataclass
@@ -18,9 +24,7 @@ class PageComparison:
     image_changed: bool
     missing_left: bool = False
     missing_right: bool = False
-    text_diff_html: str = ""
-    left_image_b64: str = ""
-    right_image_b64: str = ""
+    text_rows: list[TextChange] = field(default_factory=list)
     diff_image_b64: str = ""
     note: str = ""
 
@@ -40,30 +44,24 @@ def _page_text(page: fitz.Page) -> str:
     return page.get_text("text").strip()
 
 
-def _text_diff_html(left: str, right: str) -> str:
+def _line_rows(left: str, right: str) -> list[TextChange]:
     if left == right:
-        return f"<div class='same'>{html.escape(left or '(нет текста)')}</div>"
+        return []
 
     left_lines = left.splitlines()
     right_lines = right.splitlines()
     sm = difflib.SequenceMatcher(a=left_lines, b=right_lines)
-    out: list[str] = []
+    rows: list[TextChange] = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == 'equal':
+            continue
+        if tag in ('delete', 'replace'):
             for line in left_lines[i1:i2]:
-                out.append(f"<div class='eq'>{html.escape(line)}</div>")
-        elif tag == 'delete':
-            for line in left_lines[i1:i2]:
-                out.append(f"<div class='del'>- {html.escape(line)}</div>")
-        elif tag == 'insert':
+                rows.append(TextChange(source=line, changed="", kind="Удалено"))
+        if tag in ('insert', 'replace'):
             for line in right_lines[j1:j2]:
-                out.append(f"<div class='ins'>+ {html.escape(line)}</div>")
-        else:
-            for line in left_lines[i1:i2]:
-                out.append(f"<div class='del'>- {html.escape(line)}</div>")
-            for line in right_lines[j1:j2]:
-                out.append(f"<div class='ins'>+ {html.escape(line)}</div>")
-    return "\n".join(out)
+                rows.append(TextChange(source="", changed=line, kind="Добавлено"))
+    return rows
 
 
 def _diff_image(left: Image.Image, right: Image.Image) -> tuple[Image.Image, str]:
@@ -96,8 +94,8 @@ def compare_pdfs(left_path: str, right_path: str) -> dict[str, Any]:
     pages: list[PageComparison] = []
 
     for idx in range(max_pages):
-        left_exists = idx < left_doc.page_count
-        right_exists = idx < right_doc.page_count
+        left_exists = idx < left_pages
+        right_exists = idx < right_pages
         page_number = idx + 1
 
         if not left_exists or not right_exists:
@@ -107,6 +105,7 @@ def compare_pdfs(left_path: str, right_path: str) -> dict[str, Any]:
                 image_changed=True,
                 missing_left=not left_exists,
                 missing_right=not right_exists,
+                text_rows=[TextChange(source='(страница отсутствует)', changed='(страница отсутствует)', kind='Страница отличается')],
                 note='страница есть только в одном PDF',
             ))
             continue
@@ -119,15 +118,14 @@ def compare_pdfs(left_path: str, right_path: str) -> dict[str, Any]:
         right_img = _render_page(rp)
         diff_img, note = _diff_image(left_img, right_img)
 
-        text_changed = left_text != right_text
+        text_rows = _line_rows(left_text, right_text)
+        text_changed = bool(text_rows)
         image_changed = bool(note)
         pages.append(PageComparison(
             page_number=page_number,
             text_changed=text_changed,
             image_changed=image_changed,
-            text_diff_html=_text_diff_html(left_text, right_text),
-            left_image_b64=_img_to_b64(left_img),
-            right_image_b64=_img_to_b64(right_img),
+            text_rows=text_rows,
             diff_image_b64=_img_to_b64(diff_img),
             note=note,
         ))

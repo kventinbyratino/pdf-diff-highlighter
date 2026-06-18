@@ -9,7 +9,7 @@
 <body>
   <main class="wrap">
     <h1>PDF Compare</h1>
-    <p class="lead">Загрузите 2 многостраничных PDF. Приложение сравнит текст и визуальные страницы, подсветит изменения.</p>
+    <p class="lead">Загрузите 2 многостраничных PDF. Приложение сравнит текст и покажет diff-изображение по страницам.</p>
 
     <form method="post" action="/compare" enctype="multipart/form-data" class="card">
       <label>PDF 1<input type="file" name="pdf1" accept="application/pdf" required></label>
@@ -32,27 +32,55 @@
           <h2>Страница {{ p.page_number }}</h2>
           <div class="flags">
             <span class="flag {{ 'bad' if p.text_changed else 'good' }}">Текст {{ 'изменён' if p.text_changed else 'без изменений' }}</span>
-            <span class="flag {{ 'bad' if p.image_changed else 'good' }}">Визуально {{ 'изменено' if p.image_changed else 'без изменений' }}</span>
+            <span class="flag {{ 'bad' if p.image_changed else 'good' }}">Diff {{ 'есть' if p.image_changed else 'нет' }}</span>
           </div>
           {% if p.note %}<p class="note">{{ p.note }}</p>{% endif %}
 
-          <div class="grid">
-            <div>
-              <h3>Текст</h3>
-              <div class="diff">{{ p.text_diff_html|safe }}</div>
+          <h3>Текст</h3>
+          {% if p.text_rows %}
+          <table class="diff-table">
+            <thead>
+              <tr>
+                <th>Тип</th>
+                <th>Исходный</th>
+                <th>Измененный</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in p.text_rows %}
+              <tr class="{{ 'del' if row.kind == 'Удалено' else 'ins' }}">
+                <td>{{ row.kind }}</td>
+                <td>{{ row.source }}</td>
+                <td>{{ row.changed }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+            <p class="muted">Текст без изменений.</p>
+          {% endif %}
+
+          <h3>Изображение diff</h3>
+          {% if p.diff_image_b64 %}
+            <div class="diff-wrap">
+              <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
+              <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}">Полноэкранный просмотр</button>
+              <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
             </div>
-            <div>
-              <h3>Визуал</h3>
-              <div class="images">
-                {% if p.left_image_b64 %}<figure><figcaption>PDF 1</figcaption><img src="data:image/png;base64,{{ p.left_image_b64 }}" alt="page1"></figure>{% endif %}
-                {% if p.right_image_b64 %}<figure><figcaption>PDF 2</figcaption><img src="data:image/png;base64,{{ p.right_image_b64 }}" alt="page2"></figure>{% endif %}
-                {% if p.diff_image_b64 %}<figure><figcaption>Diff</figcaption><img src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff"></figure>{% endif %}
-              </div>
-            </div>
-          </div>
+          {% else %}
+            <p class="muted">Diff-изображение недоступно.</p>
+          {% endif %}
         </section>
       {% endfor %}
     {% endif %}
   </main>
+
+  <div id="viewer" class="viewer hidden" aria-hidden="true">
+    <button id="viewer-close" class="viewer-close" type="button">×</button>
+    <a id="viewer-download" class="viewer-download" download>Скачать</a>
+    <img id="viewer-img" alt="preview">
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 </html>
