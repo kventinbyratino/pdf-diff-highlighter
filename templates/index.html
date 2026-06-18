@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF Compare</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="wrap">
+    <h1>PDF Compare</h1>
+    <p class="lead">Загрузите 2 многостраничных PDF. Приложение сравнит текст и визуальные страницы, подсветит изменения.</p>
+
+    <form method="post" action="/compare" enctype="multipart/form-data" class="card">
+      <label>PDF 1<input type="file" name="pdf1" accept="application/pdf" required></label>
+      <label>PDF 2<input type="file" name="pdf2" accept="application/pdf" required></label>
+      <button type="submit">Сравнить</button>
+    </form>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <section class="summary card">
+        <div>Страниц: {{ result.pages|length }}</div>
+        <div>Изменённых: {{ result.changed_pages }}</div>
+      </section>
+
+      {% for p in result.pages %}
+        <section class="page card">
+          <h2>Страница {{ p.page_number }}</h2>
+          <div class="flags">
+            <span class="flag {{ 'bad' if p.text_changed else 'good' }}">Текст {{ 'изменён' if p.text_changed else 'без изменений' }}</span>
+            <span class="flag {{ 'bad' if p.image_changed else 'good' }}">Визуально {{ 'изменено' if p.image_changed else 'без изменений' }}</span>
+          </div>
+          {% if p.note %}<p class="note">{{ p.note }}</p>{% endif %}
+
+          <div class="grid">
+            <div>
+              <h3>Текст</h3>
+              <div class="diff">{{ p.text_diff_html|safe }}</div>
+            </div>
+            <div>
+              <h3>Визуал</h3>
+              <div class="images">
+                {% if p.left_image_b64 %}<figure><figcaption>PDF 1</figcaption><img src="data:image/png;base64,{{ p.left_image_b64 }}" alt="page1"></figure>{% endif %}
+                {% if p.right_image_b64 %}<figure><figcaption>PDF 2</figcaption><img src="data:image/png;base64,{{ p.right_image_b64 }}" alt="page2"></figure>{% endif %}
+                {% if p.diff_image_b64 %}<figure><figcaption>Diff</figcaption><img src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff"></figure>{% endif %}
+              </div>
+            </div>
+          </div>
+        </section>
+      {% endfor %}
+    {% endif %}
+  </main>
+</body>
+</html>
