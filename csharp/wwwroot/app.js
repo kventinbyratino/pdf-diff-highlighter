@@ -3,6 +3,225 @@ const viewerImg = document.getElementById('viewer-img');
 const viewerClose = document.getElementById('viewer-close');
 const viewerDownload = document.getElementById('viewer-download');
 
+let compareRequestSeq = 0;
+
+function updateUploadStatus(input) {
+  const status = document.querySelector(`[data-upload-status="${input.id}"]`);
+  const card = input.closest('.slot-card');
+  const clearButton = card?.querySelector('[data-clear-file]');
+  if (!status || !card) return;
+
+  const label = input.id === 'pdf1' ? 'Чертеж 1' : 'Чертеж 2';
+  const loaded = Boolean(input.files?.[0]);
+  status.textContent = `${label} — статус: ${loaded ? 'загружен' : 'не загружен'}`;
+  status.classList.toggle('slot-status-loaded', loaded);
+  card.classList.toggle('has-file', loaded);
+  if (clearButton) clearButton.hidden = !loaded;
+}
+
+function applyFileToInput(input, file) {
+  if (!input || !file) return;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function clearFileInput(input) {
+  if (!input) return;
+  input.value = '';
+  compareRequestSeq += 1;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function formHasSelectedFiles(form) {
+  const inputs = Array.from(form.querySelectorAll('.file-input'));
+  return inputs.length > 0 && inputs.every((input) => Boolean(input.files?.[0]));
+}
+
+function setInlineError(message) {
+  const currentError = document.querySelector('.error');
+  if (currentError) {
+    currentError.textContent = message;
+    return;
+  }
+  const error = document.createElement('div');
+  error.className = 'error';
+  error.textContent = message;
+  document.querySelector('.hero')?.insertAdjacentElement('afterend', error);
+}
+
+function replaceResultsAndErrors(doc) {
+  const nextError = doc.querySelector('.error');
+  const currentError = document.querySelector('.error');
+  if (nextError) {
+    if (currentError) currentError.replaceWith(nextError);
+    else document.querySelector('.hero')?.insertAdjacentElement('afterend', nextError);
+  } else {
+    currentError?.remove();
+  }
+
+  const nextResults = doc.querySelector('.results-card');
+  const currentResults = document.querySelector('.results-card');
+  if (nextResults) {
+    if (currentResults) currentResults.replaceWith(nextResults);
+    else document.querySelector('.workspace')?.insertAdjacentElement('afterend', nextResults);
+  } else {
+    currentResults?.remove();
+  }
+
+  bindPageNav();
+  bindPreviewButtons();
+  bindCompareSliders();
+}
+
+async function submitCompareForm(form) {
+  const requestSeq = ++compareRequestSeq;
+  const response = await fetch(form.action || window.location.href, {
+    method: (form.method || 'POST').toUpperCase(),
+    body: new FormData(form),
+    headers: { 'X-Requested-With': 'fetch' },
+  });
+  const html = await response.text();
+  if (requestSeq !== compareRequestSeq) return;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  replaceResultsAndErrors(doc);
+}
+
+function bindCompareForm() {
+  document.querySelectorAll('form[action="/compare"]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await submitCompareForm(form);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Не удалось обновить сравнение';
+        setInlineError(message);
+      }
+    });
+
+    form.querySelector('.precision-input')?.addEventListener('change', () => {
+      if (formHasSelectedFiles(form)) form.requestSubmit();
+    });
+  });
+}
+
+function bindDropzone(zone) {
+  const input = zone.querySelector('input[type="file"]');
+  if (!input) return;
+
+  input.addEventListener('change', () => updateUploadStatus(input));
+
+  zone.querySelector('[data-clear-file]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearFileInput(input);
+    input.focus();
+  });
+
+  zone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    zone.classList.add('dragover');
+  });
+
+  zone.addEventListener('dragleave', () => {
+    zone.classList.remove('dragover');
+  });
+
+  zone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    zone.classList.remove('dragover');
+    const file = event.dataTransfer?.files?.[0];
+    if (file) applyFileToInput(input, file);
+  });
+}
+
+function bindDropzones() {
+  document.querySelectorAll('.dropzone').forEach((zone) => bindDropzone(zone));
+  document.querySelectorAll('.file-input').forEach((input) => updateUploadStatus(input));
+}
+
+function bindResetButtons() {
+  document.querySelectorAll('[data-reset-all]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.file-input').forEach((input) => clearFileInput(input));
+      document.querySelector('.results-card')?.remove();
+      document.querySelector('.error')?.remove();
+    });
+  });
+}
+
+function bindPrecisionInputs() {
+  document.querySelectorAll('.precision-input').forEach((input) => {
+    const output = input.closest('.precision-row')?.querySelector('.precision-value');
+    const sync = () => {
+      if (output) output.textContent = input.value;
+    };
+    input.addEventListener('input', sync);
+    sync();
+  });
+}
+
+function bindCompareSliders() {
+  document.querySelectorAll('[data-compare-slider]').forEach((slider) => {
+    const range = slider.querySelector('[data-compare-range]');
+    const stage = slider.querySelector('.compare-stage');
+    if (!range) return;
+
+    const sync = () => {
+      const split = `${range.value}%`;
+      slider.style.setProperty('--split', split);
+      stage?.style.setProperty('--split', split);
+    };
+
+    range.addEventListener('input', sync);
+    range.addEventListener('change', sync);
+    sync();
+  });
+}
+
+function bindPageNav() {
+  const buttons = Array.from(document.querySelectorAll('[data-page-target]'));
+  if (!buttons.length) return;
+
+  const setActive = (targetId) => {
+    buttons.forEach((button) => {
+      const active = button.dataset.pageTarget === targetId;
+      button.classList.toggle('is-active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  };
+
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.pageTarget;
+      const target = targetId ? document.getElementById(targetId) : null;
+      setActive(targetId);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const pages = buttons
+    .map((button) => document.getElementById(button.dataset.pageTarget || ''))
+    .filter(Boolean);
+
+  if (pages.length && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) setActive(visible.target.id);
+      },
+      { rootMargin: '-25% 0px -60% 0px', threshold: [0.18, 0.35, 0.55] },
+    );
+    pages.forEach((page) => observer.observe(page));
+  }
+
+  setActive(pages[0]?.id || buttons[0].dataset.pageTarget || '');
+}
+
 const viewerState = {
   scale: 1,
   offsetX: 0,
@@ -28,7 +247,14 @@ function resetViewerZoom() {
   applyViewerTransform();
 }
 
-function openViewer(src, downloadName = 'diff.png') {
+function closeViewer() {
+  viewer?.classList.add('hidden');
+  viewer?.setAttribute('aria-hidden', 'true');
+  resetViewerZoom();
+  if (viewerImg) viewerImg.src = '';
+}
+
+function openViewer(src, downloadName = 'preview.png') {
   if (!viewer || !viewerImg || !viewerDownload) return;
   resetViewerZoom();
   viewerImg.src = src;
@@ -38,277 +264,71 @@ function openViewer(src, downloadName = 'diff.png') {
   viewer.setAttribute('aria-hidden', 'false');
 }
 
-function closeViewer() {
-  if (!viewer || !viewerImg) return;
-  viewer.classList.add('hidden');
-  viewer.setAttribute('aria-hidden', 'true');
-  resetViewerZoom();
-  viewerImg.src = '';
-}
-
-document.querySelectorAll('.preview-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const src = btn.dataset.src;
-    if (!src) return;
-    const downloadName = btn.closest('.diff-wrap')?.querySelector('.download')?.download || 'diff.png';
-    openViewer(src, downloadName);
-  });
-});
-
-viewerClose?.addEventListener('click', closeViewer);
-viewer?.addEventListener('click', (e) => {
-  if (e.target === viewer) closeViewer();
-});
-viewer?.addEventListener('wheel', (e) => {
-  if (viewer.classList.contains('hidden')) return;
-  e.preventDefault();
-  const direction = e.deltaY < 0 ? 1 : -1;
-  viewerState.scale = Math.min(4, Math.max(1, viewerState.scale + direction * 0.25));
-  if (viewerState.scale === 1) {
-    viewerState.offsetX = 0;
-    viewerState.offsetY = 0;
-  }
-  applyViewerTransform();
-}, { passive: false });
-viewerImg?.addEventListener('pointerdown', (e) => {
-  if (viewerState.scale <= 1) return;
-  e.preventDefault();
-  viewerState.dragging = true;
-  viewerState.dragStartX = e.clientX;
-  viewerState.dragStartY = e.clientY;
-  viewerState.startOffsetX = viewerState.offsetX;
-  viewerState.startOffsetY = viewerState.offsetY;
-  viewerImg.setPointerCapture?.(e.pointerId);
-  viewerImg.classList.add('is-dragging');
-});
-viewerImg?.addEventListener('pointermove', (e) => {
-  if (!viewerState.dragging) return;
-  viewerState.offsetX = viewerState.startOffsetX + e.clientX - viewerState.dragStartX;
-  viewerState.offsetY = viewerState.startOffsetY + e.clientY - viewerState.dragStartY;
-  applyViewerTransform();
-});
-const stopViewerDrag = (e) => {
-  if (!viewerState.dragging) return;
-  viewerState.dragging = false;
-  viewerImg?.releasePointerCapture?.(e.pointerId);
-  viewerImg?.classList.remove('is-dragging');
-};
-viewerImg?.addEventListener('pointerup', stopViewerDrag);
-viewerImg?.addEventListener('pointercancel', stopViewerDrag);
-viewerImg?.addEventListener('dragstart', (e) => e.preventDefault());
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && viewer && !viewer.classList.contains('hidden')) closeViewer();
-});
-
-const precisionInput = document.getElementById('precision');
-const precisionValue = document.getElementById('precision-value');
-if (precisionInput && precisionValue) {
-  const syncPrecision = () => {
-    precisionValue.value = precisionInput.value;
-    precisionValue.textContent = precisionInput.value;
-  };
-  syncPrecision();
-  precisionInput.addEventListener('input', syncPrecision);
-}
-
-const CACHE_DB = 'pdf-diff-highlighter-cache-v1';
-const STORE_NAME = 'files';
-const CACHE_LIMIT = 6;
-const dbPromise = window.indexedDB
-  ? new Promise((resolve, reject) => {
-      const request = indexedDB.open(CACHE_DB, 1);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' });
-        store.createIndex('slot', 'slot', { unique: false });
-        store.createIndex('updatedAt', 'updatedAt', { unique: false });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    })
-  : null;
-
-function fileKey(slot, file) {
-  return `${slot}:${file.name}:${file.size}:${file.lastModified}`;
-}
-
-async function withStore(mode, callback) {
-  if (!dbPromise) return null;
-  const db = await dbPromise;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, mode);
-    const store = tx.objectStore(STORE_NAME);
-    const result = callback(store);
-    tx.oncomplete = () => resolve(result);
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
-}
-
-async function saveFileToCache(slot, file) {
-  const entry = {
-    key: fileKey(slot, file),
-    slot,
-    name: file.name,
-    type: file.type,
-    size: file.size,
-    lastModified: file.lastModified,
-    updatedAt: Date.now(),
-    blob: file,
-  };
-  await withStore('readwrite', (store) => store.put(entry));
-}
-
-async function getCachedFiles(slot) {
-  if (!dbPromise) return [];
-  const db = await dbPromise;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index('slot');
-    const request = index.getAll(slot);
-    request.onsuccess = () => {
-      const items = (request.result || [])
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, CACHE_LIMIT)
-        .map((item) => ({
-          key: item.key,
-          name: item.name,
-          type: item.type,
-          size: item.size,
-          lastModified: item.lastModified,
-          updatedAt: item.updatedAt,
-        }));
-      resolve(items);
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function loadCachedFile(key) {
-  if (!dbPromise) return null;
-  const db = await dbPromise;
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.get(key);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function setInputFile(input, file) {
-  const dt = new DataTransfer();
-  dt.items.add(file);
-  input.files = dt.files;
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function fileLabel(file) {
-  if (!file) return 'Файл не выбран';
-  const mb = (file.size / (1024 * 1024)).toFixed(1);
-  return `${file.name} · ${mb} MB`;
-}
-
-function updateDropzoneLabel(input) {
-  if (!input) return;
-  const slot = input.id;
-  const label = document.querySelector(`[data-file-name="${slot}"]`);
-  if (!label) return;
-  label.textContent = input.files?.[0] ? fileLabel(input.files[0]) : 'Файл не выбран';
-}
-
-async function renderCache(slot) {
-  const list = document.querySelector(`[data-cache-list="${slot}"]`);
-  const input = document.getElementById(slot);
-  if (!list || !input) return;
-  list.innerHTML = '';
-  try {
-    const items = await getCachedFiles(slot);
-    if (!items.length) {
-      const empty = document.createElement('div');
-      empty.className = 'muted';
-      empty.textContent = 'Кэш пуст';
-      list.appendChild(empty);
-      return;
-    }
-    for (const item of items) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'cache-btn';
-      btn.textContent = `${item.name} (${(item.size / (1024 * 1024)).toFixed(1)} MB)`;
-      btn.title = 'Загрузить из кэша';
-      btn.addEventListener('click', async () => {
-        try {
-          const cached = await loadCachedFile(item.key);
-          if (!cached) return;
-          const file = cached.blob instanceof File
-            ? cached.blob
-            : new File([cached.blob], cached.name, { type: cached.type, lastModified: cached.lastModified });
-          setInputFile(input, file);
-          await saveFileToCache(slot, file);
-          await renderCache(slot);
-        } catch {
-          // cache is best-effort only
-        }
-      });
-      list.appendChild(btn);
-    }
-  } catch {
-    const fallback = document.createElement('div');
-    fallback.className = 'muted';
-    fallback.textContent = 'Кэш недоступен';
-    list.appendChild(fallback);
-  }
-}
-
-function wireDropzone(slot) {
-  const input = document.getElementById(slot);
-  const dropzone = document.querySelector(`[data-slot="${slot}"]`);
-  if (!input || !dropzone) return;
-
-  input.addEventListener('change', async () => {
-    updateDropzoneLabel(input);
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      await saveFileToCache(slot, file);
-      await renderCache(slot);
-    } catch {
-      // cache is best-effort only
-    }
-  });
-
-  const prevent = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  ['dragenter', 'dragover'].forEach((eventName) => {
-    dropzone.addEventListener(eventName, (e) => {
-      prevent(e);
-      dropzone.classList.add('dragover');
+function bindPreviewButtons() {
+  document.querySelectorAll('[data-viewer-src]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const src = button.dataset.viewerSrc || '';
+      if (src) openViewer(src, button.dataset.download || 'diff.png');
     });
   });
-  ['dragleave', 'dragend'].forEach((eventName) => {
-    dropzone.addEventListener(eventName, (e) => {
-      prevent(e);
-      dropzone.classList.remove('dragover');
-    });
+}
+
+function bindViewer() {
+  viewerClose?.addEventListener('click', closeViewer);
+  viewer?.addEventListener('click', (event) => {
+    if (event.target === viewer) closeViewer();
   });
-  dropzone.addEventListener('drop', async (e) => {
-    prevent(e);
-    dropzone.classList.remove('dragover');
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
-    setInputFile(input, file);
-    await saveFileToCache(slot, file);
-    await renderCache(slot);
+  viewer?.addEventListener('wheel', (event) => {
+    if (viewer.classList.contains('hidden')) return;
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    viewerState.scale = Math.min(4, Math.max(1, viewerState.scale + direction * 0.25));
+    if (viewerState.scale === 1) {
+      viewerState.offsetX = 0;
+      viewerState.offsetY = 0;
+    }
+    applyViewerTransform();
+  }, { passive: false });
+  viewerImg?.addEventListener('pointerdown', (event) => {
+    if (viewerState.scale <= 1) return;
+    event.preventDefault();
+    viewerState.dragging = true;
+    viewerState.dragStartX = event.clientX;
+    viewerState.dragStartY = event.clientY;
+    viewerState.startOffsetX = viewerState.offsetX;
+    viewerState.startOffsetY = viewerState.offsetY;
+    viewerImg.setPointerCapture?.(event.pointerId);
+    viewerImg.classList.add('is-dragging');
+  });
+  viewerImg?.addEventListener('pointermove', (event) => {
+    if (!viewerState.dragging) return;
+    viewerState.offsetX = viewerState.startOffsetX + event.clientX - viewerState.dragStartX;
+    viewerState.offsetY = viewerState.startOffsetY + event.clientY - viewerState.dragStartY;
+    applyViewerTransform();
+  });
+  const stopDrag = (event) => {
+    if (!viewerState.dragging) return;
+    viewerState.dragging = false;
+    viewerImg?.releasePointerCapture?.(event.pointerId);
+    viewerImg?.classList.remove('is-dragging');
+  };
+  viewerImg?.addEventListener('pointerup', stopDrag);
+  viewerImg?.addEventListener('pointercancel', stopDrag);
+  viewerImg?.addEventListener('dragstart', (event) => event.preventDefault());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeViewer();
   });
 }
 
-['pdf1', 'pdf2'].forEach((slot) => {
-  wireDropzone(slot);
-  updateDropzoneLabel(document.getElementById(slot));
-  void renderCache(slot);
-});
+function init() {
+  bindPrecisionInputs();
+  bindDropzones();
+  bindResetButtons();
+  bindCompareForm();
+  bindCompareSliders();
+  bindPreviewButtons();
+  bindPageNav();
+  bindViewer();
+}
+
+init();

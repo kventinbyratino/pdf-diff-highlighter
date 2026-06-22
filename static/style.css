@@ -511,6 +511,21 @@ button.secondary:hover {
   object-fit: contain;
   border-radius: 8px;
   background: var(--bg);
+  cursor: zoom-in;
+  transform-origin: center center;
+  transition: transform 120ms ease;
+  user-select: none;
+  touch-action: none;
+  will-change: transform;
+}
+
+.viewer img.is-zoomed {
+  cursor: grab;
+}
+
+.viewer img.is-dragging {
+  cursor: grabbing;
+  transition: none;
 }
 
 .viewer-close,

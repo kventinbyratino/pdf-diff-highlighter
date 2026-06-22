@@ -1,6 +1,8 @@
+using System.Runtime.InteropServices;
 using System.Text;
-using PdfiumDocument = PdfiumViewer.PdfDocument;
-using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
+using Docnet.Core;
+using Docnet.Core.Models;
+using Docnet.Core.Readers;
 using SkiaSharp;
 
 var app = WebApplication.CreateBuilder(args).Build();
@@ -14,27 +16,34 @@ app.MapPost("/compare", async (HttpRequest request) =>
     var form = await request.ReadFormAsync();
     var left = form.Files.GetFile("pdf1");
     var right = form.Files.GetFile("pdf2");
-    if (left is null || right is null)
-        return Results.Content(Html.IndexPage("Нужно выбрать два PDF файла"), "text/html; charset=utf-8");
-
     var precision = ParsePrecision(form["precision"].ToString());
+
+    if (left is null || right is null)
+        return Results.Content(Html.IndexPage("Нужно выбрать два PDF файла", precision), "text/html; charset=utf-8");
 
     var tmp = Path.Combine(Path.GetTempPath(), "pdf-diff-highlighter-csharp", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(tmp);
 
-    var leftPath = Path.Combine(tmp, "left.pdf");
-    var rightPath = Path.Combine(tmp, "right.pdf");
-    await using (var s = File.Create(leftPath)) await left.CopyToAsync(s);
-    await using (var s = File.Create(rightPath)) await right.CopyToAsync(s);
+    try
+    {
+        var leftPath = Path.Combine(tmp, "left.pdf");
+        var rightPath = Path.Combine(tmp, "right.pdf");
+        await using (var s = File.Create(leftPath)) await left.CopyToAsync(s);
+        await using (var s = File.Create(rightPath)) await right.CopyToAsync(s);
 
-    var result = PdfComparator.Compare(leftPath, rightPath, precision);
-    return Results.Content(Html.ResultPage(result), "text/html; charset=utf-8");
+        var result = PdfComparator.Compare(leftPath, rightPath, precision);
+        return Results.Content(Html.ResultPage(result), "text/html; charset=utf-8");
+    }
+    finally
+    {
+        try { Directory.Delete(tmp, recursive: true); } catch { /* temp cleanup is best-effort */ }
+    }
 });
 
 static int ParsePrecision(string? raw)
 {
     if (!int.TryParse(raw, out var precision))
-        return 75;
+        return 50;
     return Math.Clamp(precision, 1, 100);
 }
 
@@ -44,101 +53,58 @@ static class PdfComparator
 {
     public static ComparisonResult Compare(string leftPath, string rightPath, int precision)
     {
-        using var leftDoc = PdfPigDocument.Open(leftPath);
-        using var rightDoc = PdfPigDocument.Open(rightPath);
+        using var leftDoc = OpenPdf(leftPath);
+        using var rightDoc = OpenPdf(rightPath);
 
-        var maxPages = Math.Max(leftDoc.NumberOfPages, rightDoc.NumberOfPages);
+        var leftPageCount = leftDoc.GetPageCount();
+        var rightPageCount = rightDoc.GetPageCount();
+        var maxPages = Math.Max(leftPageCount, rightPageCount);
         var pages = new List<PageResult>(maxPages);
 
         for (var i = 0; i < maxPages; i++)
         {
-            var leftExists = i < leftDoc.NumberOfPages;
-            var rightExists = i < rightDoc.NumberOfPages;
+            var leftExists = i < leftPageCount;
+            var rightExists = i < rightPageCount;
 
             if (!leftExists || !rightExists)
             {
                 pages.Add(new PageResult
                 {
                     PageNumber = i + 1,
-                    TextChanged = true,
                     ImageChanged = true,
-                    Note = "страница есть только в одном PDF",
-                    TextRows = new List<TextRow>
-                    {
-                        new("Страница отличается", "(страница отсутствует)", "(страница отсутствует)")
-                    }
+                    Note = "страница есть только в одном PDF"
                 });
                 continue;
             }
 
-            var leftPageText = Normalize(leftDoc.GetPage(i + 1).Text);
-            var rightPageText = Normalize(rightDoc.GetPage(i + 1).Text);
-            var textRows = DiffLines(leftPageText, rightPageText);
             var diffImage = RenderDiffImage(leftPath, rightPath, i, precision);
 
             pages.Add(new PageResult
             {
                 PageNumber = i + 1,
-                TextChanged = textRows.Count > 0,
                 ImageChanged = diffImage.HasDiff,
-                TextRows = textRows,
-                DiffImageDataUrl = diffImage.DataUrl,
+                LeftImageDataUrl = diffImage.LeftDataUrl,
+                DiffImageDataUrl = diffImage.DiffDataUrl,
                 Note = diffImage.Note
             });
         }
 
         return new ComparisonResult
         {
-            LeftPages = leftDoc.NumberOfPages,
-            RightPages = rightDoc.NumberOfPages,
-            ChangedPages = pages.Count(p => p.TextChanged || p.ImageChanged),
+            LeftPages = leftPageCount,
+            RightPages = rightPageCount,
+            ChangedPages = pages.Count(p => p.ImageChanged),
             Precision = precision,
             DiffThreshold = PrecisionToThreshold(precision),
             Pages = pages
         };
     }
 
-
-    private static string Normalize(string text) => text.Replace("\r\n", "\n").Trim();
-
-    private static List<TextRow> DiffLines(string left, string right)
-    {
-        if (left == right)
-            return new List<TextRow>();
-
-        var leftLines = left.Split('\n');
-        var rightLines = right.Split('\n');
-        var sm = new SequenceMatcher(leftLines, rightLines);
-        var rows = new List<TextRow>();
-
-        foreach (var op in sm.GetOpcodes())
-        {
-            if (op.Tag is "equal") continue;
-            if (op.Tag is "delete" or "replace")
-            {
-                for (var i = op.AStart; i < op.AEnd; i++)
-                    rows.Add(new TextRow("Удалено", leftLines[i], ""));
-            }
-            if (op.Tag is "insert" or "replace")
-            {
-                for (var i = op.BStart; i < op.BEnd; i++)
-                    rows.Add(new TextRow("Добавлено", "", rightLines[i]));
-            }
-        }
-
-        return rows;
-    }
-
     private static DiffImage RenderDiffImage(string leftPath, string rightPath, int pageIndex, int precision)
     {
-        using var leftDoc = PdfiumDocument.Load(leftPath);
-        using var rightDoc = PdfiumDocument.Load(rightPath);
-        using var leftBmp = leftDoc.Render(pageIndex, 144, 144, true);
-        using var rightBmp = rightDoc.Render(pageIndex, 144, 144, true);
-
-        using var leftImg = SKBitmap.Decode(ImageToBytes(leftBmp)) ?? throw new InvalidOperationException("не удалось декодировать левую страницу");
-        using var rightImg = SKBitmap.Decode(ImageToBytes(rightBmp)) ?? throw new InvalidOperationException("не удалось декодировать правую страницу");
-
+        using var leftImg = RenderPage(leftPath, pageIndex);
+        using var rightImg = RenderPage(rightPath, pageIndex);
+        var leftDataUrl = ToDataUrl(leftImg);
         var threshold = PrecisionToThreshold(precision);
 
         if (leftImg.Width != rightImg.Width || leftImg.Height != rightImg.Height)
@@ -148,44 +114,70 @@ static class PdfComparator
             canvas.Clear(SKColors.White);
             canvas.DrawBitmap(leftImg, 0, 0);
             canvas.DrawBitmap(rightImg, leftImg.Width + 24, 0);
-            return new DiffImage(ToDataUrl(canvasBmp), true, $"разный размер страниц: {leftImg.Width}x{leftImg.Height} vs {rightImg.Width}x{rightImg.Height}");
+            return new DiffImage(leftDataUrl, ToDataUrl(canvasBmp), true, $"разный размер страниц: {leftImg.Width}x{leftImg.Height} vs {rightImg.Width}x{rightImg.Height}");
         }
 
-        using var diffBmp = new SKBitmap(leftImg.Width, leftImg.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        var width = leftImg.Width;
+        var height = leftImg.Height;
+        var mask = new bool[width, height];
         var changed = false;
-        for (var y = 0; y < leftImg.Height; y++)
+
+        for (var y = 0; y < height; y++)
         {
-            for (var x = 0; x < leftImg.Width; x++)
+            for (var x = 0; x < width; x++)
             {
                 var l = leftImg.GetPixel(x, y);
                 var r = rightImg.GetPixel(x, y);
                 var d = Math.Abs(l.Red - r.Red) + Math.Abs(l.Green - r.Green) + Math.Abs(l.Blue - r.Blue);
                 if (d > threshold)
                 {
-                    diffBmp.SetPixel(x, y, new SKColor(255, 64, 64));
+                    mask[x, y] = true;
                     changed = true;
-                }
-                else
-                {
-                    diffBmp.SetPixel(x, y, r);
                 }
             }
         }
 
-        return new DiffImage(ToDataUrl(diffBmp), changed, changed ? $"визуальные изменения обнаружены (порог {threshold})" : string.Empty);
+        using var diffBmp = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                diffBmp.SetPixel(x, y, HasNeighbor(mask, width, height, x, y) ? SKColors.Red : rightImg.GetPixel(x, y));
+            }
+        }
+
+        return new DiffImage(leftDataUrl, ToDataUrl(diffBmp), changed, changed ? $"визуальные изменения обнаружены (порог {threshold})" : string.Empty);
+    }
+
+    private static bool HasNeighbor(bool[,] mask, int width, int height, int x, int y)
+    {
+        for (var yy = Math.Max(0, y - 1); yy <= Math.Min(height - 1, y + 1); yy++)
+            for (var xx = Math.Max(0, x - 1); xx <= Math.Min(width - 1, x + 1); xx++)
+                if (mask[xx, yy]) return true;
+        return false;
     }
 
     private static int PrecisionToThreshold(int precision)
     {
         precision = Math.Clamp(precision, 1, 100);
-        return Math.Max(1, (100 - precision) * 2);
+        return Math.Max(1, (int)Math.Round(12 - ((precision - 1) * 11 / 99.0)));
     }
 
-    private static byte[] ImageToBytes(System.Drawing.Image img)
+    private static IDocReader OpenPdf(string path)
     {
-        using var ms = new MemoryStream();
-        img.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-        return ms.ToArray();
+        return DocLib.Instance.GetDocReader(File.ReadAllBytes(path), new PageDimensions(1800, 1800));
+    }
+
+    private static SKBitmap RenderPage(string path, int pageIndex)
+    {
+        using var doc = OpenPdf(path);
+        using var page = doc.GetPageReader(pageIndex);
+        var width = page.GetPageWidth();
+        var height = page.GetPageHeight();
+        var bytes = page.GetImage();
+        var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        Marshal.Copy(bytes, 0, bitmap.GetPixels(), Math.Min(bytes.Length, bitmap.ByteCount));
+        return bitmap;
     }
 
     private static string ToDataUrl(SKBitmap bitmap)
@@ -198,61 +190,90 @@ static class PdfComparator
 
 static class Html
 {
-    public static string IndexPage(string? error = null) => $"""
+    public static string IndexPage(string? error = null, int precision = 50) => $"""
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF Compare C#</title>
+  <title>Сравнение PDF чертежей</title>
   <link rel="stylesheet" href="/site.css">
 </head>
 <body>
   <main class="wrap">
-    <h1>PDF Compare C#</h1>
-    <p class="lead">Загрузите 2 многостраничных PDF. Поддерживаются drag and drop, кэш последних файлов и настройка точности сравнения.</p>
+    <section class="hero card">
+      <div class="eyebrow">PDF diff</div>
+      <h1>Сравнение PDF чертежей</h1>
+      <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
+    </section>
+
     {Error(error)}
-    <form method="post" action="/compare" enctype="multipart/form-data" class="card compare-form" id="compare-form">
-      <div class="drop-grid">
-        <label class="dropzone" for="pdf1" data-slot="pdf1">
-          <span class="dropzone-title">PDF 1</span>
-          <span class="dropzone-hint">Перетащите файл сюда или нажмите для выбора</span>
-          <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required>
-          <span class="dropzone-file" data-file-name="pdf1">Файл не выбран</span>
-        </label>
-        <div class="cache-panel" data-cache-slot="pdf1">
-          <div class="cache-title">Кэш PDF 1</div>
-          <div class="cache-list" data-cache-list="pdf1"></div>
-        </div>
-        <label class="dropzone" for="pdf2" data-slot="pdf2">
-          <span class="dropzone-title">PDF 2</span>
-          <span class="dropzone-hint">Перетащите файл сюда или нажмите для выбора</span>
-          <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required>
-          <span class="dropzone-file" data-file-name="pdf2">Файл не выбран</span>
-        </label>
-        <div class="cache-panel" data-cache-slot="pdf2">
-          <div class="cache-title">Кэш PDF 2</div>
-          <div class="cache-list" data-cache-list="pdf2"></div>
-        </div>
-      </div>
 
-      <div class="card precision-card">
-        <div class="precision-head">
+    <section class="workspace">
+      <form method="post" action="/compare" enctype="multipart/form-data" class="card panel" id="compare-form">
+        <div class="upload-grid">
+          <section class="slot-card dropzone" data-target="pdf1">
+            <button type="button" class="slot-clear" data-clear-file="pdf1" aria-label="Удалить чертеж 1" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
+            <label class="upload-field" for="pdf1">
+              <span class="sr-only">Выбрать PDF 1</span>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </span>
+              <span class="slot-status" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</span>
+              <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
+            </label>
+          </section>
+
+          <section class="slot-card dropzone" data-target="pdf2">
+            <button type="button" class="slot-clear" data-clear-file="pdf2" aria-label="Удалить чертеж 2" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
+            <label class="upload-field" for="pdf2">
+              <span class="sr-only">Выбрать PDF 2</span>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </span>
+              <span class="slot-status" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</span>
+              <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
+            </label>
+          </section>
+        </div>
+
+        <div class="precision-row">
           <label for="precision">Точность сравнения</label>
-          <output id="precision-value" for="precision">75</output>
+          <output class="precision-value" for="precision">{precision}</output>
+          <input id="precision" class="precision-input" name="precision" type="range" min="1" max="100" value="{precision}">
         </div>
-        <input type="range" id="precision" name="precision" min="1" max="100" value="75">
-        <p class="muted">Выше значение — строже поиск мелких отличий.</p>
-      </div>
 
-      <button type="submit">Сравнить</button>
-    </form>
+        <div class="form-actions">
+          <button type="button" class="secondary" data-reset-all>Сбросить</button>
+          <button type="submit">Сравнить</button>
+        </div>
+      </form>
+    </section>
   </main>
-  <div id="viewer" class="viewer hidden" aria-hidden="true">
-    <button id="viewer-close" class="viewer-close" type="button">×</button>
-    <a id="viewer-download" class="viewer-download" download>Скачать</a>
-    <img id="viewer-img" alt="preview">
-  </div>
+
+  {Viewer()}
   <script src="/app.js" defer></script>
 </body>
 </html>
@@ -260,78 +281,131 @@ static class Html
 
     public static string ResultPage(ComparisonResult result)
     {
-        var pages = new StringBuilder();
-        foreach (var p in result.Pages)
-        {
-            pages.Append($"""
-<section class="card page">
-  <h2>Страница {p.PageNumber}</h2>
-  <div class="flags">
-    <span class="flag {(p.TextChanged ? "bad" : "good")}">Текст {(p.TextChanged ? "изменён" : "без изменений")}</span>
-    <span class="flag {(p.ImageChanged ? "bad" : "good")}">Diff {(p.ImageChanged ? "есть" : "нет")}</span>
-  </div>
-  {(string.IsNullOrWhiteSpace(p.Note) ? "" : $"<p class='note'>{WebUtility.HtmlEncode(p.Note)}</p>")}
-  <h3>Текст</h3>
-  {(p.TextRows.Count == 0 ? "<p class='muted'>Текст без изменений.</p>" : TextTable(p.TextRows))}
-  <h3>Изображение diff</h3>
-  {(string.IsNullOrWhiteSpace(p.DiffImageDataUrl) ? "<p class='muted'>Diff-изображение недоступно.</p>" : $"<div class='diff-wrap'><a class='download' href='{p.DiffImageDataUrl}' download='page-{p.PageNumber}-diff.png'>Скачать PNG</a><button type='button' class='preview-btn' data-src='{p.DiffImageDataUrl}'>Полноэкранный просмотр</button><img class='diff-thumb' src='{p.DiffImageDataUrl}' alt='diff page {p.PageNumber}'></div>")}
-</section>
-""");
-        }
-
         return $"""
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF Compare C#</title>
+  <title>Сравнение PDF чертежей</title>
   <link rel="stylesheet" href="/site.css">
 </head>
 <body>
   <main class="wrap">
-    <h1>PDF Compare C#</h1>
-    <section class="card summary">
-      <div>Страниц: {result.Pages.Count}</div>
-      <div>Изменённых: {result.ChangedPages}</div>
-      <div>Точность: {result.Precision}</div>
-      <div>Порог diff: {result.DiffThreshold}</div>
+    <section class="hero card">
+      <div class="eyebrow">PDF diff</div>
+      <h1>Сравнение PDF чертежей</h1>
+      <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
     </section>
-    {pages}
-    <p><a href="/">Назад</a></p>
+
+    <section class="workspace">
+      <form method="post" action="/compare" enctype="multipart/form-data" class="card panel" id="compare-form">
+        <div class="upload-grid">
+          <section class="slot-card dropzone" data-target="pdf1">
+            <button type="button" class="slot-clear" data-clear-file="pdf1" aria-label="Удалить чертеж 1" hidden></button>
+            <label class="upload-field" for="pdf1"><span class="sr-only">Выбрать PDF 1</span><span class="slot-status" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</span><input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input"></label>
+          </section>
+          <section class="slot-card dropzone" data-target="pdf2">
+            <button type="button" class="slot-clear" data-clear-file="pdf2" aria-label="Удалить чертеж 2" hidden></button>
+            <label class="upload-field" for="pdf2"><span class="sr-only">Выбрать PDF 2</span><span class="slot-status" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</span><input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input"></label>
+          </section>
+        </div>
+        <div class="precision-row">
+          <label for="precision">Точность сравнения</label>
+          <output class="precision-value" for="precision">{result.Precision}</output>
+          <input id="precision" class="precision-input" name="precision" type="range" min="1" max="100" value="{result.Precision}">
+        </div>
+        <div class="form-actions"><button type="button" class="secondary" data-reset-all>Сбросить</button><button type="submit">Сравнить</button></div>
+      </form>
+    </section>
+
+    <section class="card results-card">
+      <header class="result-head"><div><div class="eyebrow">Результат</div><h2>Сравнение листов</h2></div></header>
+      <div class="results-body {(result.Pages.Count > 1 ? "results-body-with-sidebar" : "")}">
+        {PagesSidebar(result.Pages)}
+        <div class="results-pages">
+          {Pages(result.Pages)}
+        </div>
+      </div>
+    </section>
   </main>
-  <div id="viewer" class="viewer hidden" aria-hidden="true">
-    <button id="viewer-close" class="viewer-close" type="button">×</button>
-    <a id="viewer-download" class="viewer-download" download>Скачать</a>
-    <img id="viewer-img" alt="preview">
-  </div>
+
+  {Viewer()}
   <script src="/app.js" defer></script>
 </body>
 </html>
 """;
     }
 
-    private static string Error(string? error) => string.IsNullOrWhiteSpace(error) ? "" : $"<div class='error'>{WebUtility.HtmlEncode(error)}</div>";
+    private static string PagesSidebar(List<PageResult> pages)
+    {
+        if (pages.Count <= 1) return "";
+        var buttons = new StringBuilder();
+        foreach (var p in pages)
+        {
+            buttons.Append($"""
+<button type="button" class="page-nav-btn" data-page-target="page-{p.PageNumber}" aria-label="Перейти к странице {p.PageNumber}">
+  <span class="page-nav-index">{p.PageNumber}</span>
+  <span class="page-nav-label">Лист {p.PageNumber}</span>
+</button>
+""");
+        }
+        return $"""
+<aside class="pages-sidebar" aria-label="Меню листов">
+  <div class="pages-sidebar-head"><div class="eyebrow">Листы</div><h3>Меню листов</h3></div>
+  <nav class="page-nav page-nav-vertical" aria-label="Страницы PDF">{buttons}</nav>
+</aside>
+""";
+    }
 
-    private static string TextTable(List<TextRow> rows)
+    private static string Pages(List<PageResult> pages)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("<table class='diff-table'><thead><tr><th>Тип</th><th>Исходный</th><th>Измененный</th></tr></thead><tbody>");
-        foreach (var row in rows)
-            sb.AppendLine($"<tr class='{(row.Kind == "Удалено" ? "del" : "ins")}'><td>{row.Kind}</td><td>{WebUtility.HtmlEncode(row.Source)}</td><td>{WebUtility.HtmlEncode(row.Changed)}</td></tr>");
-        sb.AppendLine("</tbody></table>");
+        foreach (var p in pages)
+        {
+            var body = !string.IsNullOrWhiteSpace(p.LeftImageDataUrl) && !string.IsNullOrWhiteSpace(p.DiffImageDataUrl)
+                ? $"""
+<div class="page-compare" data-compare-slider>
+  <div class="compare-caption" aria-hidden="true"><span>Исходный файл</span><span>Маска изменений</span></div>
+  <div class="compare-stage" style="--split: 50%;">
+    <img class="compare-layer compare-source" src="{p.LeftImageDataUrl}" alt="Исходный лист {p.PageNumber}">
+    <div class="compare-overlay"><img class="compare-layer compare-diff" src="{p.DiffImageDataUrl}" alt="Маска изменений лист {p.PageNumber}"></div>
+    <div class="compare-divider" aria-hidden="true"></div>
+    <input class="compare-range" data-compare-range type="range" min="0" max="100" value="50" aria-label="Бегунок сравнения страницы {p.PageNumber}">
+  </div>
+  <div class="slot-actions">
+    <a class="download" href="{p.DiffImageDataUrl}" download="page-{p.PageNumber}-diff.png">Скачать сравнение</a>
+    <button type="button" class="preview-btn" data-viewer-src="{p.DiffImageDataUrl}" data-download="page-{p.PageNumber}-diff.png">Полноэкранный просмотр</button>
+  </div>
+</div>
+"""
+                : $"<div class=\"page-note\">{WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(p.Note) ? "Сравнение недоступно для этой страницы" : p.Note)}</div>";
+            sb.Append($"""
+<article class="page card" id="page-{p.PageNumber}">
+  <div class="page-head"><h3>Страница {p.PageNumber}</h3></div>
+  {body}
+</article>
+""");
+        }
         return sb.ToString();
     }
-}
 
-record TextRow(string Kind, string Source, string Changed);
+    private static string Viewer() => """
+<div id="viewer" class="viewer hidden" aria-hidden="true">
+  <button id="viewer-close" class="viewer-close" type="button" aria-label="Закрыть">×</button>
+  <a id="viewer-download" class="viewer-download" download>Скачать</a>
+  <img id="viewer-img" alt="preview">
+</div>
+""";
+
+    private static string Error(string? error) => string.IsNullOrWhiteSpace(error) ? "" : $"<div class='error'>{WebUtility.HtmlEncode(error)}</div>";
+}
 
 record PageResult
 {
     public int PageNumber { get; init; }
-    public bool TextChanged { get; init; }
     public bool ImageChanged { get; init; }
-    public List<TextRow> TextRows { get; init; } = [];
+    public string LeftImageDataUrl { get; init; } = string.Empty;
     public string DiffImageDataUrl { get; init; } = string.Empty;
     public string Note { get; init; } = string.Empty;
 }
@@ -346,52 +420,9 @@ record ComparisonResult
     public List<PageResult> Pages { get; init; } = [];
 }
 
-record DiffImage(string DataUrl, bool HasDiff, string Note);
+record DiffImage(string LeftDataUrl, string DiffDataUrl, bool HasDiff, string Note);
 
 static class WebUtility
 {
     public static string HtmlEncode(string s) => System.Net.WebUtility.HtmlEncode(s);
-}
-
-sealed class SequenceMatcher
-{
-    private readonly string[] _a;
-    private readonly string[] _b;
-    public SequenceMatcher(string[] a, string[] b) { _a = a; _b = b; }
-    public IEnumerable<Opcode> GetOpcodes()
-    {
-        var m = _a.Length;
-        var n = _b.Length;
-        var dp = new int[m + 1, n + 1];
-        for (int i = m - 1; i >= 0; i--)
-            for (int j = n - 1; j >= 0; j--)
-                dp[i, j] = _a[i] == _b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
-
-        var i0 = 0;
-        var j0 = 0;
-        while (i0 < m || j0 < n)
-        {
-            if (i0 < m && j0 < n && _a[i0] == _b[j0])
-            {
-                var ai = i0;
-                var bj = j0;
-                while (i0 < m && j0 < n && _a[i0] == _b[j0]) { i0++; j0++; }
-                yield return new Opcode("equal", ai, i0, bj, j0);
-            }
-            else if (j0 < n && (i0 == m || dp[i0, j0 + 1] >= dp[i0 + 1, j0]))
-            {
-                var bj = j0;
-                while (j0 < n && (i0 == m || dp[i0, j0 + 1] >= dp[i0 + 1, j0]) && (i0 >= m || _a[i0] != _b[j0])) j0++;
-                yield return new Opcode("insert", i0, i0, bj, j0);
-            }
-            else if (i0 < m)
-            {
-                var ai = i0;
-                while (i0 < m && (j0 == n || dp[i0 + 1, j0] > dp[i0, j0 + 1]) && (j0 >= n || _a[i0] != _b[j0])) i0++;
-                yield return new Opcode("delete", ai, i0, j0, j0);
-            }
-        }
-    }
-
-    public readonly record struct Opcode(string Tag, int AStart, int AEnd, int BStart, int BEnd);
 }

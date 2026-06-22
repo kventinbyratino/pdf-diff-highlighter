@@ -222,14 +222,41 @@ function bindPageNav() {
   setActive(pages[0]?.id || buttons[0].dataset.pageTarget || '');
 }
 
+const viewerState = {
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  startOffsetX: 0,
+  startOffsetY: 0,
+};
+
+function applyViewerTransform() {
+  if (!viewerImg) return;
+  viewerImg.style.transform = `translate(${viewerState.offsetX}px, ${viewerState.offsetY}px) scale(${viewerState.scale})`;
+  viewerImg.classList.toggle('is-zoomed', viewerState.scale > 1);
+}
+
+function resetViewerZoom() {
+  viewerState.scale = 1;
+  viewerState.offsetX = 0;
+  viewerState.offsetY = 0;
+  viewerState.dragging = false;
+  applyViewerTransform();
+}
+
 function closeViewer() {
   viewer?.classList.add('hidden');
   viewer?.setAttribute('aria-hidden', 'true');
+  resetViewerZoom();
   if (viewerImg) viewerImg.src = '';
 }
 
 function openViewer(src, downloadName = 'preview.png') {
   if (!viewer || !viewerImg || !viewerDownload) return;
+  resetViewerZoom();
   viewerImg.src = src;
   viewerDownload.href = src;
   viewerDownload.download = downloadName;
@@ -251,6 +278,43 @@ function bindViewer() {
   viewer?.addEventListener('click', (event) => {
     if (event.target === viewer) closeViewer();
   });
+  viewer?.addEventListener('wheel', (event) => {
+    if (viewer.classList.contains('hidden')) return;
+    event.preventDefault();
+    const direction = event.deltaY < 0 ? 1 : -1;
+    viewerState.scale = Math.min(4, Math.max(1, viewerState.scale + direction * 0.25));
+    if (viewerState.scale === 1) {
+      viewerState.offsetX = 0;
+      viewerState.offsetY = 0;
+    }
+    applyViewerTransform();
+  }, { passive: false });
+  viewerImg?.addEventListener('pointerdown', (event) => {
+    if (viewerState.scale <= 1) return;
+    event.preventDefault();
+    viewerState.dragging = true;
+    viewerState.dragStartX = event.clientX;
+    viewerState.dragStartY = event.clientY;
+    viewerState.startOffsetX = viewerState.offsetX;
+    viewerState.startOffsetY = viewerState.offsetY;
+    viewerImg.setPointerCapture?.(event.pointerId);
+    viewerImg.classList.add('is-dragging');
+  });
+  viewerImg?.addEventListener('pointermove', (event) => {
+    if (!viewerState.dragging) return;
+    viewerState.offsetX = viewerState.startOffsetX + event.clientX - viewerState.dragStartX;
+    viewerState.offsetY = viewerState.startOffsetY + event.clientY - viewerState.dragStartY;
+    applyViewerTransform();
+  });
+  const stopDrag = (event) => {
+    if (!viewerState.dragging) return;
+    viewerState.dragging = false;
+    viewerImg?.releasePointerCapture?.(event.pointerId);
+    viewerImg?.classList.remove('is-dragging');
+  };
+  viewerImg?.addEventListener('pointerup', stopDrag);
+  viewerImg?.addEventListener('pointercancel', stopDrag);
+  viewerImg?.addEventListener('dragstart', (event) => event.preventDefault());
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeViewer();
   });
