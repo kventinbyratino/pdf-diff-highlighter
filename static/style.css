@@ -685,8 +685,8 @@ input[type='range'] {
   position: absolute;
   left: var(--split, 50%);
   top: 50%;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #111111;
   border: 2px solid #ffffff;
@@ -718,8 +718,8 @@ input[type='range'] {
 
 .compare-range::-webkit-slider-thumb {
   appearance: none;
-  width: 30px;
-  height: 30px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid #ffffff;
   background: #111111;
@@ -727,8 +727,8 @@ input[type='range'] {
 }
 
 .compare-range::-moz-range-thumb {
-  width: 30px;
-  height: 30px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 2px solid #ffffff;
   background: #111111;
