@@ -67,7 +67,7 @@ def _line_rows(left: str, right: str) -> list[TextChange]:
 
 def _precision_to_threshold(precision: int) -> int:
     precision = max(1, min(100, int(precision)))
-    return max(1, round(35 - (precision - 1) * 34 / 99))
+    return max(1, round(12 - (precision - 1) * 11 / 99))
 
 
 def _compare_rendered_pages(left: Image.Image, right: Image.Image, precision: int) -> tuple[Image.Image, str, bool]:
@@ -83,7 +83,7 @@ def _compare_rendered_pages(left: Image.Image, right: Image.Image, precision: in
     stat = ImageStat.Stat(diff)
     mean = sum(stat.mean) / len(stat.mean)
 
-    if diff.getbbox() is None or mean < 1.0:
+    if diff.getbbox() is None:
         return right.copy(), '', False
 
     mask = diff.convert('L').point(lambda p: 255 if int(p) > threshold else 0)  # type: ignore[assignment]

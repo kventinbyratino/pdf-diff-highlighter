@@ -9,13 +9,29 @@ import fitz
 from PIL import Image
 
 from app import app
-from pdf_compare import _precision_to_threshold, compare_pdfs
+from pdf_compare import _compare_rendered_pages, _precision_to_threshold, compare_pdfs
 
 COLORS = {
     'blue': (0, 0, 1),
     'red': (1, 0, 0),
     'green': (0, 0.6, 0),
 }
+
+
+def count_red_pixels(image: Image.Image) -> int:
+    rgb = image.convert('RGB')
+    red_pixels = 0
+    pixels = rgb.load()
+    assert pixels is not None
+    for x in range(rgb.width):
+        for y in range(rgb.height):
+            pixel = pixels[x, y]
+            if not isinstance(pixel, tuple):
+                continue
+            r, g, b = pixel[:3]
+            if r > 150 and g < 120 and b < 120:
+                red_pixels += 1
+    return red_pixels
 
 
 def make_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
@@ -52,23 +68,26 @@ def test_compare_detects_text_and_visual_changes():
         assert first.left_image_b64
         assert first.diff_image_b64
         diff_image = Image.open(io.BytesIO(base64.b64decode(first.diff_image_b64))).convert('RGB')
-        red_pixels = 0
-        pixels = diff_image.load()
-        assert pixels is not None
-        for x in range(diff_image.width):
-            for y in range(diff_image.height):
-                pixel = pixels[x, y]
-                if not isinstance(pixel, tuple):
-                    continue
-                r, g, b = pixel[:3]
-                if r > 150 and g < 120 and b < 120:
-                    red_pixels += 1
-        assert red_pixels > 0
+        assert count_red_pixels(diff_image) > 0
         assert {row.kind for row in first.text_rows} <= {'Удалено', 'Добавлено'}
 
         second = result['pages'][1]
         assert second.text_changed is False
         assert second.text_rows == []
+
+
+def test_sparse_faint_shifted_line_is_marked_red():
+    left = Image.new('RGB', (1000, 1000), 'white')
+    right = Image.new('RGB', (1000, 1000), 'white')
+    for y in range(250, 750):
+        left.putpixel((500, y), (238, 238, 238))
+        right.putpixel((515, y), (238, 238, 238))
+
+    diff_image, note, image_changed = _compare_rendered_pages(left, right, precision=50)
+
+    assert image_changed is True
+    assert 'визуальные изменения' in note
+    assert count_red_pixels(diff_image) > 0
 
 
 def test_precision_maps_to_thresholds():
