@@ -20,45 +20,33 @@
 
     <section class="workspace">
       <form method="post" action="compare" enctype="multipart/form-data" class="card panel">
-        <div class="panel-head">
-          <div>
-            <div class="eyebrow">PDF</div>
-            <h2>Сравнение документов</h2>
-          </div>
-          <p class="panel-lead">Загрузите 2 многостраничных PDF и настройте чувствительность.</p>
-        </div>
-
         <div class="upload-grid">
           <section class="slot-card dropzone" data-target="pdf1">
-            <div class="slot-head">
-              <h3>PDF 1</h3>
-              <span class="file-name" data-file-name="pdf1">Файл не выбран</span>
-            </div>
-            <div class="dropzone-art" aria-hidden="true">
-              <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
-                <rect x="14" y="10" width="26" height="18" rx="4"></rect>
-                <rect x="24" y="20" width="26" height="18" rx="4"></rect>
-                <path d="M31 30v10M26 35h10"></path>
-              </svg>
-            </div>
-            <p class="sr-only">Перетащите PDF сюда или выберите файл</p>
-            <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
+            <label class="upload-field" for="pdf1">
+              <span class="sr-only">Выбрать PDF 1</span>
+              <div class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="4"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="4"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </div>
+              <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
+            </label>
           </section>
 
           <section class="slot-card dropzone" data-target="pdf2">
-            <div class="slot-head">
-              <h3>PDF 2</h3>
-              <span class="file-name" data-file-name="pdf2">Файл не выбран</span>
-            </div>
-            <div class="dropzone-art" aria-hidden="true">
-              <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
-                <rect x="14" y="10" width="26" height="18" rx="4"></rect>
-                <rect x="24" y="20" width="26" height="18" rx="4"></rect>
-                <path d="M31 30v10M26 35h10"></path>
-              </svg>
-            </div>
-            <p class="sr-only">Перетащите PDF сюда или выберите файл</p>
-            <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
+            <label class="upload-field" for="pdf2">
+              <span class="sr-only">Выбрать PDF 2</span>
+              <div class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="4"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="4"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </div>
+              <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
+            </label>
           </section>
         </div>
 

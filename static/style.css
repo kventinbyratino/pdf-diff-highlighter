@@ -161,6 +161,9 @@ h4 {
   background: #fbfbfb;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04);
   justify-content: start;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 .slot-card.dragover {
@@ -168,11 +171,16 @@ h4 {
   box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12) inset;
 }
 
-.file-name {
-  color: var(--accent-2);
-  font-size: 0.82rem;
-  text-align: right;
-  word-break: break-word;
+.upload-field {
+  position: absolute;
+  inset: 0;
+  display: block;
+  cursor: pointer;
+}
+
+.upload-field:focus-within .dropzone-art,
+.upload-field:hover .dropzone-art {
+  box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.06) inset;
 }
 
 .hint,
@@ -192,18 +200,17 @@ h4 {
 }
 
 .dropzone-art {
-  display: grid;
-  place-items: center;
-  min-height: 78px;
-  margin-top: 2px;
-  border: 1px dashed var(--line);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8f8f8 100%);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
 .dropzone-art svg {
-  width: 42px;
-  height: 42px;
+  width: 72px;
+  height: 72px;
   fill: none;
   stroke: var(--accent);
   stroke-width: 2.2;
@@ -224,8 +231,12 @@ h4 {
 }
 
 .file-input {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  color: var(--text);
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .cache-panel,
