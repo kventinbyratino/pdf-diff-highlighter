@@ -48,6 +48,8 @@ def test_compare_detects_text_and_visual_changes():
         assert first.text_changed is True
         assert first.image_changed is True
         assert first.text_rows
+        assert first.left_image_b64
+        assert first.diff_image_b64
         kinds = {row.kind for row in first.text_rows}
         assert kinds <= {'Удалено', 'Добавлено'}
         second = result['pages'][1]

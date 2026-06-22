@@ -30,6 +30,7 @@ class PageComparison:
     missing_left: bool = False
     missing_right: bool = False
     text_rows: list[TextChange] = field(default_factory=list)
+    left_image_b64: str = ""
     diff_image_b64: str = ""
     note: str = ""
 
@@ -176,6 +177,7 @@ def compare_pdfs(left_path: str, right_path: str, precision: int = 50) -> dict[s
             text_changed=text_changed,
             image_changed=image_changed,
             text_rows=text_rows,
+            left_image_b64=_img_to_b64(left_img),
             diff_image_b64=_img_to_b64(diff_img),
             note=note,
         ))

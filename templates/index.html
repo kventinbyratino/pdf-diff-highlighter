@@ -129,22 +129,35 @@
                   </div>
                 </div>
 
-                {% if p.diff_image_b64 %}
-                  <div class="diff-wrap">
+                {% if p.left_image_b64 and p.diff_image_b64 %}
+                  <div class="page-compare" data-compare-slider>
+                    <div class="compare-caption" aria-hidden="true">
+                      <span>Исходный файл</span>
+                      <span>Маска изменений</span>
+                    </div>
+                    <div class="compare-stage" style="--split: 50%;">
+                      <img class="compare-layer compare-source" src="data:image/png;base64,{{ p.left_image_b64 }}" alt="Исходный лист {{ p.page_number }}">
+                      <div class="compare-overlay">
+                        <img class="compare-layer compare-diff" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="Маска изменений лист {{ p.page_number }}">
+                      </div>
+                      <div class="compare-divider" aria-hidden="true"></div>
+                      <input class="compare-range" data-compare-range type="range" min="0" max="100" value="50" aria-label="Бегунок сравнения страницы {{ p.page_number }}">
+                    </div>
                     <div class="slot-actions">
                       <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
-                      <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+                      <button type="button" class="preview-btn" data-viewer-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
                     </div>
-                    <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
                   </div>
+                {% else %}
+                  <div class="page-note">{{ p.note or 'Сравнение недоступно для этой страницы' }}</div>
                 {% endif %}
-              </article>
+                </article>
             {% endfor %}
           </div>
         </div>
       </section>
     {% endif %}
-  </main>
+
 
   <div id="viewer" class="viewer hidden" aria-hidden="true">
     <button id="viewer-close" class="viewer-close" type="button">×</button>

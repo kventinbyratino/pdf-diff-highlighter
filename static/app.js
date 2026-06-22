@@ -115,6 +115,7 @@ function replaceResultsAndErrors(doc) {
 
   bindPageNav();
   bindPreviewThumbs();
+  bindCompareSliders();
 }
 
 async function submitCompareForm(form) {
@@ -519,12 +520,28 @@ async function applyCrop() {
   closeCropModal();
 }
 
+function bindCompareSliders() {
+  document.querySelectorAll('[data-compare-slider]').forEach((stage) => {
+    const range = stage.querySelector('[data-compare-range]');
+    if (!range) return;
+
+    const sync = () => {
+      stage.style.setProperty('--split', `${range.value}%`);
+    };
+
+    range.addEventListener('input', sync);
+    range.addEventListener('change', sync);
+    sync();
+  });
+}
+
 function bindPreviewThumbs() {
-  document.querySelectorAll('.diff-thumb, .slot-preview').forEach((img) => {
-    img.addEventListener('click', () => {
-      if (!img.src) return;
-      const downloadName = img.dataset.download || img.getAttribute('alt') || 'preview.png';
-      openViewer(img.src, downloadName);
+  document.querySelectorAll('[data-viewer-src], [data-src]').forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      const src = trigger.dataset.viewerSrc || trigger.dataset.src || '';
+      if (!src) return;
+      const downloadName = trigger.dataset.download || trigger.getAttribute('alt') || 'preview.png';
+      openViewer(src, downloadName);
     });
   });
 }
