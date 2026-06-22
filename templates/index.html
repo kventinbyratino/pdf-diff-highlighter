@@ -130,8 +130,8 @@
                       <input class="compare-range" data-compare-range type="range" min="0" max="100" value="50" aria-label="Бегунок сравнения страницы {{ p.page_number }}">
                     </div>
                     <div class="slot-actions">
-                      <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
-                      <button type="button" class="preview-btn" data-viewer-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Открыть</button>
+                      <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать сравнение</a>
+                      <button type="button" class="preview-btn" data-viewer-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
                     </div>
                   </div>
                 {% else %}

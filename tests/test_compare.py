@@ -118,4 +118,7 @@ def test_compare_route_renders_before_after_slider():
     assert 'data-compare-range' in html
     assert 'Исходный файл' in html
     assert 'Маска изменений' in html
+    assert 'Скачать сравнение' in html
+    assert 'Полноэкранный просмотр' in html
+    assert 'Скачать PNG' not in html
     assert 'pages-sidebar' not in html
