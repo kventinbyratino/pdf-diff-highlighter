@@ -34,11 +34,14 @@ function setImageStatus(message, tone = 'muted') {
   imageStatus.className = `status ${tone}`;
 }
 
-function updateFileLabel(input) {
-  const label = document.querySelector(`[data-file-name="${input.id}"]`);
-  if (label) {
-    label.textContent = input.files?.[0]?.name || 'Файл не выбран';
-  }
+function updateUploadStatus(input) {
+  const status = document.querySelector(`[data-upload-status="${input.id}"]`);
+  if (!status) return;
+  const label = input.id === 'pdf1' ? 'Чертеж 1' : input.id === 'pdf2' ? 'Чертеж 2' : input.id;
+  const loaded = Boolean(input.files?.[0]);
+  status.textContent = `${label} — статус: ${loaded ? 'загружен' : 'не загружен'}`;
+  status.classList.toggle('slot-status-loaded', loaded);
+  status.classList.toggle('slot-status-empty', !loaded);
 }
 
 function setPreviewSlot(slotId, file) {
@@ -267,7 +270,7 @@ function bindDropzone(zone) {
   if (!input) return;
 
   input.addEventListener('change', () => {
-    updateFileLabel(input);
+    updateUploadStatus(input);
     setPreviewSlot(input.id, input.files?.[0] || null);
   });
 
@@ -495,6 +498,16 @@ function bindDropzones() {
   document.querySelectorAll('.dropzone').forEach((zone) => bindDropzone(zone));
 }
 
+function bindPageNav() {
+  document.querySelectorAll('[data-page-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.pageTarget;
+      const target = targetId ? document.getElementById(targetId) : null;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
 function bindCacheButtons() {
   document.querySelectorAll('[data-cache-save]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -545,12 +558,14 @@ function bindCacheButtons() {
 function init() {
   bindPrecisionInputs();
   bindDropzones();
+  document.querySelectorAll('.file-input').forEach((input) => updateUploadStatus(input));
   bindCacheButtons();
   bindCaptureButtons();
   bindCropButtons();
   bindCropInteractions();
   bindCropModal();
   bindPreviewThumbs();
+  bindPageNav();
   bindViewer();
 
   if (!navigator.mediaDevices?.getDisplayMedia) {

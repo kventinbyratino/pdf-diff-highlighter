@@ -171,6 +171,58 @@ h4 {
   box-shadow: 0 0 0 2px rgba(17, 17, 17, 0.12) inset;
 }
 
+.slot-status {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  z-index: 2;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.slot-status-empty {
+  color: #c11c1c;
+}
+
+.slot-status-loaded {
+  color: #18803a;
+}
+
+.page-nav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  margin: 0 0 14px;
+  scrollbar-width: thin;
+}
+
+.page-nav-btn {
+  flex: 0 0 auto;
+  min-width: 42px;
+  border-radius: 999px;
+  border: 1px solid #7aa7d9;
+  background: #eef5ff;
+  color: #1d4f8c;
+  font-weight: 800;
+  padding: 8px 12px;
+  min-height: 36px;
+}
+
+.page-nav-btn:hover,
+.page-nav-btn:focus-visible {
+  background: #dbeaff;
+  border-color: #5f96cf;
+}
+
+.page {
+  scroll-margin-top: 16px;
+}
+
 .upload-field {
   position: absolute;
   inset: 0;

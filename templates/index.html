@@ -31,6 +31,7 @@
                   <path d="M31 30v10M26 35h10"></path>
                 </svg>
               </div>
+              <div class="slot-status slot-status-empty" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</div>
               <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
             </label>
           </section>
@@ -45,6 +46,7 @@
                   <path d="M31 30v10M26 35h10"></path>
                 </svg>
               </div>
+              <div class="slot-status slot-status-empty" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</div>
               <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
             </label>
           </section>
@@ -73,8 +75,16 @@
           </div>
         </div>
 
+        {% if pdf_result.pages|length > 1 %}
+          <nav class="page-nav" aria-label="Страницы PDF">
+            {% for p in pdf_result.pages %}
+              <button type="button" class="page-nav-btn" data-page-target="page-{{ p.page_number }}">{{ p.page_number }}</button>
+            {% endfor %}
+          </nav>
+        {% endif %}
+
         {% for p in pdf_result.pages %}
-          <article class="page card">
+          <article class="page card" id="page-{{ p.page_number }}">
             <div class="page-head">
               <div>
                 <h3>Страница {{ p.page_number }}</h3>
