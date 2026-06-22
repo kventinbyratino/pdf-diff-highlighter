@@ -402,7 +402,7 @@ button.secondary:hover {
 .compare-overlay {
   position: absolute;
   inset: 0;
-  clip-path: inset(0 calc(100% - var(--split, 50%)) 0 0);
+  clip-path: inset(0 0 0 var(--split, 50%));
   overflow: hidden;
 }
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import fitz  # PyMuPDF
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 
 
 @dataclass
@@ -90,10 +90,10 @@ def _compare_rendered_pages(left: Image.Image, right: Image.Image, precision: in
     if mask.getbbox() is None:
         return right.copy(), '', False
 
+    mask = mask.filter(ImageFilter.MaxFilter(3))
     highlight = Image.new('RGB', left.size, 'red')
-    merged = Image.composite(highlight, right, mask)
-    blended = Image.blend(right, merged, 0.62)
-    return blended, f'визуальные изменения: mean diff={mean:.2f}, threshold={threshold}', True
+    marked = Image.composite(highlight, right, mask)
+    return marked, f'визуальные изменения: mean diff={mean:.2f}, threshold={threshold}', True
 
 
 def _missing_page(page_number: int, *, missing_left: bool, missing_right: bool) -> PageComparison:

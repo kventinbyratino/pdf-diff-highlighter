@@ -122,3 +122,8 @@ def test_compare_route_renders_before_after_slider():
     assert 'Полноэкранный просмотр' in html
     assert 'Скачать PNG' not in html
     assert 'pages-sidebar' not in html
+
+
+def test_compare_overlay_shows_mask_on_right_side():
+    css = Path('static/style.css').read_text()
+    assert 'clip-path: inset(0 0 0 var(--split, 50%));' in css
