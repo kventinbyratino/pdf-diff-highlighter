@@ -17,6 +17,8 @@ app.MapPost("/compare", async (HttpRequest request) =>
     if (left is null || right is null)
         return Results.Content(Html.IndexPage("Нужно выбрать два PDF файла"), "text/html; charset=utf-8");
 
+    var precision = ParsePrecision(form["precision"].ToString());
+
     var tmp = Path.Combine(Path.GetTempPath(), "pdf-diff-highlighter-csharp", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(tmp);
 
@@ -25,15 +27,22 @@ app.MapPost("/compare", async (HttpRequest request) =>
     await using (var s = File.Create(leftPath)) await left.CopyToAsync(s);
     await using (var s = File.Create(rightPath)) await right.CopyToAsync(s);
 
-    var result = PdfComparator.Compare(leftPath, rightPath);
+    var result = PdfComparator.Compare(leftPath, rightPath, precision);
     return Results.Content(Html.ResultPage(result), "text/html; charset=utf-8");
 });
+
+static int ParsePrecision(string? raw)
+{
+    if (!int.TryParse(raw, out var precision))
+        return 75;
+    return Math.Clamp(precision, 1, 100);
+}
 
 app.Run();
 
 static class PdfComparator
 {
-    public static ComparisonResult Compare(string leftPath, string rightPath)
+    public static ComparisonResult Compare(string leftPath, string rightPath, int precision)
     {
         using var leftDoc = PdfDocument.Open(leftPath);
         using var rightDoc = PdfDocument.Open(rightPath);
@@ -65,7 +74,7 @@ static class PdfComparator
             var leftPageText = Normalize(leftDoc.GetPage(i + 1).Text);
             var rightPageText = Normalize(rightDoc.GetPage(i + 1).Text);
             var textRows = DiffLines(leftPageText, rightPageText);
-            var diffImage = RenderDiffImage(leftPath, rightPath, i);
+            var diffImage = RenderDiffImage(leftPath, rightPath, i, precision);
 
             pages.Add(new PageResult
             {
@@ -83,9 +92,12 @@ static class PdfComparator
             LeftPages = leftDoc.NumberOfPages,
             RightPages = rightDoc.NumberOfPages,
             ChangedPages = pages.Count(p => p.TextChanged || p.ImageChanged),
+            Precision = precision,
+            DiffThreshold = PrecisionToThreshold(precision),
             Pages = pages
         };
     }
+
 
     private static string Normalize(string text) => text.Replace("\r\n", "\n").Trim();
 
@@ -117,7 +129,7 @@ static class PdfComparator
         return rows;
     }
 
-    private static DiffImage RenderDiffImage(string leftPath, string rightPath, int pageIndex)
+    private static DiffImage RenderDiffImage(string leftPath, string rightPath, int pageIndex, int precision)
     {
         using var leftDoc = PdfDocument.Load(leftPath);
         using var rightDoc = PdfDocument.Load(rightPath);
@@ -126,6 +138,8 @@ static class PdfComparator
 
         using var leftImg = SKBitmap.Decode(BitmapToBytes(leftBmp)) ?? throw new InvalidOperationException("не удалось декодировать левую страницу");
         using var rightImg = SKBitmap.Decode(BitmapToBytes(rightBmp)) ?? throw new InvalidOperationException("не удалось декодировать правую страницу");
+
+        var threshold = PrecisionToThreshold(precision);
 
         if (leftImg.Width != rightImg.Width || leftImg.Height != rightImg.Height)
         {
@@ -146,7 +160,7 @@ static class PdfComparator
                 var l = leftImg.GetPixel(x, y);
                 var r = rightImg.GetPixel(x, y);
                 var d = Math.Abs(l.Red - r.Red) + Math.Abs(l.Green - r.Green) + Math.Abs(l.Blue - r.Blue);
-                if (d > 45)
+                if (d > threshold)
                 {
                     diffBmp.SetPixel(x, y, new SKColor(255, 64, 64));
                     changed = true;
@@ -158,7 +172,13 @@ static class PdfComparator
             }
         }
 
-        return new DiffImage(ToDataUrl(diffBmp), changed, changed ? "визуальные изменения обнаружены" : string.Empty);
+        return new DiffImage(ToDataUrl(diffBmp), changed, changed ? $"визуальные изменения обнаружены (порог {threshold})" : string.Empty);
+    }
+
+    private static int PrecisionToThreshold(int precision)
+    {
+        precision = Math.Clamp(precision, 1, 100);
+        return Math.Max(1, (100 - precision) * 2);
     }
 
     private static byte[] BitmapToBytes(System.Drawing.Bitmap bmp)
@@ -190,14 +210,50 @@ static class Html
 <body>
   <main class="wrap">
     <h1>PDF Compare C#</h1>
-    <p class="lead">Загрузите 2 многостраничных PDF. Текст — таблица добавлено/удалено. Изображение — diff.</p>
+    <p class="lead">Загрузите 2 многостраничных PDF. Поддерживаются drag and drop, кэш последних файлов и настройка точности сравнения.</p>
     {Error(error)}
-    <form method="post" action="/compare" enctype="multipart/form-data" class="card">
-      <label>PDF 1<input type="file" name="pdf1" accept="application/pdf" required></label>
-      <label>PDF 2<input type="file" name="pdf2" accept="application/pdf" required></label>
+    <form method="post" action="/compare" enctype="multipart/form-data" class="card compare-form" id="compare-form">
+      <div class="drop-grid">
+        <label class="dropzone" for="pdf1" data-slot="pdf1">
+          <span class="dropzone-title">PDF 1</span>
+          <span class="dropzone-hint">Перетащите файл сюда или нажмите для выбора</span>
+          <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required>
+          <span class="dropzone-file" data-file-name="pdf1">Файл не выбран</span>
+        </label>
+        <div class="cache-panel" data-cache-slot="pdf1">
+          <div class="cache-title">Кэш PDF 1</div>
+          <div class="cache-list" data-cache-list="pdf1"></div>
+        </div>
+        <label class="dropzone" for="pdf2" data-slot="pdf2">
+          <span class="dropzone-title">PDF 2</span>
+          <span class="dropzone-hint">Перетащите файл сюда или нажмите для выбора</span>
+          <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required>
+          <span class="dropzone-file" data-file-name="pdf2">Файл не выбран</span>
+        </label>
+        <div class="cache-panel" data-cache-slot="pdf2">
+          <div class="cache-title">Кэш PDF 2</div>
+          <div class="cache-list" data-cache-list="pdf2"></div>
+        </div>
+      </div>
+
+      <div class="card precision-card">
+        <div class="precision-head">
+          <label for="precision">Точность сравнения</label>
+          <output id="precision-value" for="precision">75</output>
+        </div>
+        <input type="range" id="precision" name="precision" min="1" max="100" value="75">
+        <p class="muted">Выше значение — строже поиск мелких отличий.</p>
+      </div>
+
       <button type="submit">Сравнить</button>
     </form>
   </main>
+  <div id="viewer" class="viewer hidden" aria-hidden="true">
+    <button id="viewer-close" class="viewer-close" type="button">×</button>
+    <a id="viewer-download" class="viewer-download" download>Скачать</a>
+    <img id="viewer-img" alt="preview">
+  </div>
+  <script src="/app.js" defer></script>
 </body>
 </html>
 """;
@@ -238,6 +294,8 @@ static class Html
     <section class="card summary">
       <div>Страниц: {result.Pages.Count}</div>
       <div>Изменённых: {result.ChangedPages}</div>
+      <div>Точность: {result.Precision}</div>
+      <div>Порог diff: {result.DiffThreshold}</div>
     </section>
     {pages}
     <p><a href="/">Назад</a></p>
@@ -247,23 +305,7 @@ static class Html
     <a id="viewer-download" class="viewer-download" download>Скачать</a>
     <img id="viewer-img" alt="preview">
   </div>
-  <script>
-    const viewer = document.getElementById('viewer');
-    const viewerImg = document.getElementById('viewer-img');
-    const viewerClose = document.getElementById('viewer-close');
-    const viewerDownload = document.getElementById('viewer-download');
-    document.querySelectorAll('.preview-btn').forEach(btn => btn.addEventListener('click', () => {{
-      const src = btn.dataset.src;
-      viewerImg.src = src;
-      viewerDownload.href = src;
-      viewer.classList.remove('hidden');
-      viewer.setAttribute('aria-hidden', 'false');
-    }}));
-    function closeViewer() {{ viewer.classList.add('hidden'); viewerImg.src = ''; }}
-    viewerClose?.addEventListener('click', closeViewer);
-    viewer?.addEventListener('click', e => {{ if (e.target === viewer) closeViewer(); }});
-    document.addEventListener('keydown', e => {{ if (e.key === 'Escape' && !viewer.classList.contains('hidden')) closeViewer(); }});
-  </script>
+  <script src="/app.js" defer></script>
 </body>
 </html>
 """;
@@ -298,6 +340,8 @@ record ComparisonResult
     public int LeftPages { get; init; }
     public int RightPages { get; init; }
     public int ChangedPages { get; init; }
+    public int Precision { get; init; }
+    public int DiffThreshold { get; init; }
     public List<PageResult> Pages { get; init; } = [];
 }
 

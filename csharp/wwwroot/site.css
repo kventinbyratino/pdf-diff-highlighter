@@ -3,22 +3,42 @@ body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; marg
 h1 { margin: 0 0 8px; }
 .lead { color: #94a3b8; margin-top: 0; }
 .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; margin: 16px 0; }
+.compare-form { display: grid; gap: 16px; }
+.drop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.dropzone, .cache-panel, .precision-card { background: #0b1220; border: 1px solid #334155; border-radius: 14px; padding: 14px; }
+.dropzone { position: relative; display: grid; gap: 8px; min-height: 140px; align-content: start; cursor: pointer; overflow: hidden; }
+.dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dropzone-title { font-size: 18px; font-weight: 700; }
+.dropzone-hint { color: #94a3b8; }
+.dropzone-file { color: #cbd5e1; font-size: 13px; }
+.dropzone.dragover { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) inset; }
+.cache-panel { display: grid; gap: 10px; }
+.cache-title { font-size: 14px; font-weight: 700; color: #93c5fd; }
+.cache-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.cache-btn { background: #1d4ed8; color: white; border: 0; padding: 8px 10px; border-radius: 10px; cursor: pointer; text-align: left; font-size: 13px; }
+.cache-btn:hover { background: #2563eb; }
+.precision-card { display: grid; gap: 10px; }
+.precision-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.precision-head label { font-weight: 700; }
+.precision-head output { font-variant-numeric: tabular-nums; font-weight: 700; color: #38bdf8; }
+input[type=range] { width: 100%; }
 label { display: block; margin-bottom: 12px; }
 input[type=file] { display: block; margin-top: 8px; }
-button, .download, .viewer-download, .viewer-close { background: #38bdf8; color: #082f49; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+button, .download, .viewer-download, .viewer-close, .preview-btn { background: #38bdf8; color: #082f49; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-block; }
+button:hover, .download:hover, .viewer-download:hover, .viewer-close:hover, .preview-btn:hover { filter: brightness(1.05); }
 .error { background: #7f1d1d; border: 1px solid #b91c1c; padding: 12px; border-radius: 10px; }
-.summary { display: flex; gap: 24px; font-weight: 600; }
+.summary { display: flex; gap: 24px; font-weight: 600; flex-wrap: wrap; }
 .flags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .flag { padding: 4px 8px; border-radius: 999px; font-size: 12px; }
 .good { background: #14532d; }
 .bad { background: #7f1d1d; }
 .note { color: #fbbf24; }
-.muted { color: #94a3b8; }
 .diff-table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
 .diff-table th, .diff-table td { border: 1px solid #334155; padding: 8px; vertical-align: top; }
 .diff-table th { background: #0b1220; text-align: left; }
 .diff-table tr.del td { background: rgba(239, 68, 68, 0.12); }
 .diff-table tr.ins td { background: rgba(34, 197, 94, 0.12); }
+.muted { color: #94a3b8; }
 .diff-wrap { display: grid; gap: 10px; }
 .diff-thumb { width: 100%; max-width: 100%; border-radius: 10px; border: 1px solid #334155; background: white; cursor: zoom-in; }
 .viewer { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.94); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 1000; }
@@ -26,4 +46,7 @@ button, .download, .viewer-download, .viewer-close { background: #38bdf8; color:
 .viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 12px; background: white; }
 .viewer-close { position: fixed; top: 16px; right: 16px; font-size: 24px; line-height: 1; padding: 8px 12px; }
 .viewer-download { position: fixed; top: 16px; right: 70px; }
-@media (max-width: 900px) { .summary { flex-direction: column; gap: 8px; } }
+@media (max-width: 900px) {
+  .drop-grid { grid-template-columns: 1fr; }
+  .summary { flex-direction: column; gap: 8px; }
+}
