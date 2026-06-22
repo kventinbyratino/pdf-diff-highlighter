@@ -240,7 +240,7 @@ async function captureBrowserShot() {
 }
 
 async function captureDesktopShot() {
-  const response = await fetch('/capture-screen?monitor=1');
+  const response = await fetch('capture-screen?monitor=1');
   if (!response.ok) {
     const message = await response.text();
     throw new Error(message || 'Не удалось снять экран ОС');
