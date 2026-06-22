@@ -15,6 +15,7 @@
 ## Зависимости
 - .NET 8 SDK
 - NuGet: `UglyToad.PdfPig`, `PdfiumViewer`, `SkiaSharp`
+- `SixLabors.ImageSharp` не используется; визуализация идёт через `SkiaSharp` (MIT)
 
 ## Запуск
 

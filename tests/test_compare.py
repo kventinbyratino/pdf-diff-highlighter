@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 
 import fitz
+from PIL import Image
 
-from pdf_compare import compare_pdfs
+from pdf_compare import _precision_to_threshold, compare_images, compare_pdfs
 
 COLORS = {
     'blue': (0, 0, 1),
@@ -25,6 +26,11 @@ def make_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
     doc.close()
 
 
+def make_image(path: Path, color: tuple[int, int, int], size: tuple[int, int] = (180, 120)) -> None:
+    img = Image.new('RGB', size, color)
+    img.save(path)
+
+
 def test_compare_detects_text_and_visual_changes():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -32,10 +38,12 @@ def test_compare_detects_text_and_visual_changes():
         b = tmp / 'b.pdf'
         make_pdf(a, [('Hello A', 'blue'), ('Page 2 same', 'green')])
         make_pdf(b, [('Hello B', 'red'), ('Page 2 same', 'green')])
-        result = compare_pdfs(str(a), str(b))
+        result = compare_pdfs(str(a), str(b), precision=50)
         assert result['left_pages'] == 2
         assert result['right_pages'] == 2
         assert result['changed_pages'] >= 1
+        assert result['precision'] == 50
+        assert result['diff_threshold'] == _precision_to_threshold(50)
         first = result['pages'][0]
         assert first.text_changed is True
         assert first.image_changed is True
@@ -45,3 +53,25 @@ def test_compare_detects_text_and_visual_changes():
         second = result['pages'][1]
         assert second.text_changed is False
         assert second.text_rows == []
+
+
+def test_compare_images_detects_changes_and_precision():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        a = tmp / 'a.png'
+        b = tmp / 'b.png'
+        make_image(a, (255, 255, 255))
+        make_image(b, (240, 240, 240))
+        result = compare_images(str(a), str(b), precision=80)
+        assert result.left_size == (180, 120)
+        assert result.right_size == (180, 120)
+        assert result.changed is True
+        assert result.note
+        assert result.precision == 80
+        assert result.diff_threshold == _precision_to_threshold(80)
+
+
+def test_precision_maps_to_thresholds():
+    assert _precision_to_threshold(1) > _precision_to_threshold(100)
+    assert _precision_to_threshold(1) >= 1
+    assert _precision_to_threshold(100) == 1

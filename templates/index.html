@@ -8,70 +8,248 @@
 </head>
 <body>
   <main class="wrap">
-    <h1>PDF Compare</h1>
-    <p class="lead">Загрузите 2 многостраничных PDF. Приложение сравнит текст и покажет diff-изображение по страницам.</p>
-
-    <form method="post" action="/compare" enctype="multipart/form-data" class="card">
-      <label>PDF 1<input type="file" name="pdf1" accept="application/pdf" required></label>
-      <label>PDF 2<input type="file" name="pdf2" accept="application/pdf" required></label>
-      <button type="submit">Сравнить</button>
-    </form>
+    <section class="hero card">
+      <div class="eyebrow">PDF • скриншоты • ручной кроп</div>
+      <h1>PDF Compare</h1>
+      <p class="lead">Сравнивайте PDF, загруженные изображения и скриншоты с экрана. Кадр можно снять в браузере или через ОС, а чертёж — вырезать мышью перед сравнением.</p>
+    </section>
 
     {% if error %}
       <div class="error">{{ error }}</div>
     {% endif %}
 
-    {% if result %}
-      <section class="summary card">
-        <div>Страниц: {{ result.pages|length }}</div>
-        <div>Изменённых: {{ result.changed_pages }}</div>
-      </section>
-
-      {% for p in result.pages %}
-        <section class="page card">
-          <h2>Страница {{ p.page_number }}</h2>
-          <div class="flags">
-            <span class="flag {{ 'bad' if p.text_changed else 'good' }}">Текст {{ 'изменён' if p.text_changed else 'без изменений' }}</span>
-            <span class="flag {{ 'bad' if p.image_changed else 'good' }}">Diff {{ 'есть' if p.image_changed else 'нет' }}</span>
+    <section class="workspace">
+      <form method="post" action="/compare" enctype="multipart/form-data" class="card panel">
+        <div class="panel-head">
+          <div>
+            <div class="eyebrow">PDF</div>
+            <h2>Сравнение документов</h2>
           </div>
-          {% if p.note %}<p class="note">{{ p.note }}</p>{% endif %}
+          <p class="panel-lead">Загрузите 2 многостраничных PDF. Поддерживаются drag and drop, кэш последних файлов и настройка чувствительности.</p>
+        </div>
 
-          <h3>Текст</h3>
-          {% if p.text_rows %}
-          <table class="diff-table">
-            <thead>
-              <tr>
-                <th>Тип</th>
-                <th>Исходный</th>
-                <th>Измененный</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in p.text_rows %}
-              <tr class="{{ 'del' if row.kind == 'Удалено' else 'ins' }}">
-                <td>{{ row.kind }}</td>
-                <td>{{ row.source }}</td>
-                <td>{{ row.changed }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          {% else %}
-            <p class="muted">Текст без изменений.</p>
-          {% endif %}
-
-          <h3>Изображение diff</h3>
-          {% if p.diff_image_b64 %}
-            <div class="diff-wrap">
-              <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
-              <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}">Полноэкранный просмотр</button>
-              <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
+        <div class="upload-grid">
+          <section class="slot-card dropzone" data-target="pdf1">
+            <div class="slot-head">
+              <h3>PDF 1</h3>
+              <span class="file-name" data-file-name="pdf1">Файл не выбран</span>
             </div>
-          {% else %}
-            <p class="muted">Diff-изображение недоступно.</p>
-          {% endif %}
+            <p class="hint">Перетащите PDF сюда или выберите файл</p>
+            <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
+            <div class="cache-panel">
+              <button type="button" class="cache-btn" data-cache-save="pdf1">Сохранить в кэш</button>
+              <button type="button" class="cache-btn secondary" data-cache-load="pdf1">Загрузить из кэша</button>
+            </div>
+          </section>
+
+          <section class="slot-card dropzone" data-target="pdf2">
+            <div class="slot-head">
+              <h3>PDF 2</h3>
+              <span class="file-name" data-file-name="pdf2">Файл не выбран</span>
+            </div>
+            <p class="hint">Перетащите PDF сюда или выберите файл</p>
+            <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
+            <div class="cache-panel">
+              <button type="button" class="cache-btn" data-cache-save="pdf2">Сохранить в кэш</button>
+              <button type="button" class="cache-btn secondary" data-cache-load="pdf2">Загрузить из кэша</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="precision-card">
+          <div class="precision-head">
+            <div>
+              <h3>Точность сравнения</h3>
+              <p class="hint">Более высокий уровень — более строгий поиск мелких отличий.</p>
+            </div>
+            <output class="precision-value">{{ precision or 50 }}</output>
+          </div>
+          <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
         </section>
-      {% endfor %}
+
+        <button type="submit">Сравнить PDF</button>
+      </form>
+
+      <form method="post" action="/compare-images" enctype="multipart/form-data" class="card panel" id="image-form">
+        <div class="panel-head">
+          <div>
+            <div class="eyebrow">Скриншоты</div>
+            <h2>Сравнение экранов</h2>
+          </div>
+          <p class="panel-lead">Загрузите изображения, снимите экран браузера или ОС и при необходимости вырежьте нужную область мышью.</p>
+        </div>
+
+        <div class="shot-grid">
+          <article class="slot-card dropzone" data-target="shot1">
+            <div class="slot-head">
+              <h3>Кадр 1</h3>
+              <span class="file-name" data-file-name="shot1">Файл не выбран</span>
+            </div>
+            <p class="hint">PNG, JPG, WebP или снимок с экрана</p>
+            <input type="file" id="shot1" name="shot1" accept="image/*" required class="file-input">
+            <div class="slot-actions">
+              <button type="button" data-capture-browser="shot1">Снять в браузере</button>
+              <button type="button" class="secondary" data-capture-screen="shot1">Снять экран ОС</button>
+              <button type="button" class="secondary" data-crop="shot1">Вырезать чертёж</button>
+            </div>
+            <div class="slot-preview-shell">
+              <img class="slot-preview" data-preview="shot1" alt="Превью кадра 1" hidden>
+              <div class="slot-empty">Превью появится здесь</div>
+            </div>
+          </article>
+
+          <article class="slot-card dropzone" data-target="shot2">
+            <div class="slot-head">
+              <h3>Кадр 2</h3>
+              <span class="file-name" data-file-name="shot2">Файл не выбран</span>
+            </div>
+            <p class="hint">Загрузите второй кадр или снимите другую область</p>
+            <input type="file" id="shot2" name="shot2" accept="image/*" required class="file-input">
+            <div class="slot-actions">
+              <button type="button" data-capture-browser="shot2">Снять в браузере</button>
+              <button type="button" class="secondary" data-capture-screen="shot2">Снять экран ОС</button>
+              <button type="button" class="secondary" data-crop="shot2">Вырезать чертёж</button>
+            </div>
+            <div class="slot-preview-shell">
+              <img class="slot-preview" data-preview="shot2" alt="Превью кадра 2" hidden>
+              <div class="slot-empty">Превью появится здесь</div>
+            </div>
+          </article>
+        </div>
+
+        <p id="image-status" class="status muted"></p>
+
+        <section class="precision-card">
+          <div class="precision-head">
+            <div>
+              <h3>Точность сравнения</h3>
+              <p class="hint">Этот же ползунок влияет на PDF и на изображения.</p>
+            </div>
+            <output class="precision-value">{{ precision or 50 }}</output>
+          </div>
+          <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
+        </section>
+
+        <button type="submit">Сравнить изображения</button>
+      </form>
+    </section>
+
+    {% if pdf_result %}
+      <section class="card results-card">
+        <div class="result-head">
+          <div>
+            <div class="eyebrow">PDF diff</div>
+            <h2>Результат сравнения PDF</h2>
+          </div>
+          <div class="summary-pills">
+            <span class="pill neutral">Страниц {{ pdf_result.pages|length }}</span>
+            <span class="pill {{ 'bad' if pdf_result.changed_pages else 'good' }}">Изменённых {{ pdf_result.changed_pages }}</span>
+            <span class="pill neutral">Точность {{ pdf_result.precision }}</span>
+            <span class="pill neutral">Порог {{ pdf_result.diff_threshold }}</span>
+          </div>
+        </div>
+
+        {% for p in pdf_result.pages %}
+          <article class="page card">
+            <div class="page-head">
+              <div>
+                <h3>Страница {{ p.page_number }}</h3>
+                {% if p.note %}<p class="note">{{ p.note }}</p>{% endif %}
+              </div>
+              <div class="flags">
+                <span class="flag {{ 'bad' if p.text_changed else 'good' }}">Текст {{ 'изменён' if p.text_changed else 'без изменений' }}</span>
+                <span class="flag {{ 'bad' if p.image_changed else 'good' }}">Diff {{ 'есть' if p.image_changed else 'нет' }}</span>
+              </div>
+            </div>
+
+            <h4>Текст</h4>
+            {% if p.text_rows %}
+              <table class="diff-table">
+                <thead>
+                  <tr>
+                    <th>Тип</th>
+                    <th>Исходный</th>
+                    <th>Изменённый</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in p.text_rows %}
+                    <tr class="{{ 'del' if row.kind == 'Удалено' else 'ins' }}">
+                      <td>{{ row.kind }}</td>
+                      <td>{{ row.source }}</td>
+                      <td>{{ row.changed }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="muted">Текст без изменений.</p>
+            {% endif %}
+
+            <h4>Изображение diff</h4>
+            {% if p.diff_image_b64 %}
+              <div class="diff-wrap">
+                <div class="slot-actions">
+                  <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
+                  <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+                </div>
+                <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
+              </div>
+            {% else %}
+              <p class="muted">Diff-изображение недоступно.</p>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if image_result %}
+      <section class="card results-card">
+        <div class="result-head">
+          <div>
+            <div class="eyebrow">Скриншоты</div>
+            <h2>Результат сравнения изображений</h2>
+          </div>
+          <div class="summary-pills">
+            <span class="pill {{ 'bad' if image_result.changed else 'good' }}">{{ 'Есть отличия' if image_result.changed else 'Без отличий' }}</span>
+            <span class="pill neutral">Точность {{ image_result.precision }}</span>
+            <span class="pill neutral">Порог {{ image_result.diff_threshold }}</span>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric">
+            <span>Слева</span>
+            <strong>{{ image_result.left_size[0] }}×{{ image_result.left_size[1] }}</strong>
+          </div>
+          <div class="metric">
+            <span>Справа</span>
+            <strong>{{ image_result.right_size[0] }}×{{ image_result.right_size[1] }}</strong>
+          </div>
+          <div class="metric">
+            <span>Статус</span>
+            <strong>{{ 'Изменено' if image_result.changed else 'Без изменений' }}</strong>
+          </div>
+          <div class="metric">
+            <span>Порог</span>
+            <strong>{{ image_result.diff_threshold }}</strong>
+          </div>
+        </div>
+
+        {% if image_result.note %}
+          <p class="note">{{ image_result.note }}</p>
+        {% endif %}
+
+        {% if image_result.diff_image_b64 %}
+          <div class="diff-wrap">
+            <div class="slot-actions">
+              <a class="download" href="data:image/png;base64,{{ image_result.diff_image_b64 }}" download="image-diff.png">Скачать PNG</a>
+              <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ image_result.diff_image_b64 }}" data-download="image-diff.png">Полноэкранный просмотр</button>
+            </div>
+            <img class="diff-thumb" src="data:image/png;base64,{{ image_result.diff_image_b64 }}" alt="image diff">
+          </div>
+        {% endif %}
+      </section>
     {% endif %}
   </main>
 
@@ -79,6 +257,28 @@
     <button id="viewer-close" class="viewer-close" type="button">×</button>
     <a id="viewer-download" class="viewer-download" download>Скачать</a>
     <img id="viewer-img" alt="preview">
+  </div>
+
+  <div id="crop-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-crop-close></div>
+    <section class="modal-card crop-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">Вырезать чертёж</div>
+          <h2>Ручной кроп</h2>
+        </div>
+        <button id="crop-close" class="viewer-close" type="button">×</button>
+      </div>
+      <p id="crop-hint" class="muted">Потяните мышью, чтобы выделить область. Сохраняется только выбранный фрагмент.</p>
+      <div class="crop-stage" id="crop-stage">
+        <img id="crop-image" alt="Кадр для кропа">
+        <div id="crop-selection" class="crop-selection hidden"></div>
+      </div>
+      <div class="slot-actions modal-actions">
+        <button type="button" id="crop-reset" class="secondary">Сбросить</button>
+        <button type="button" id="crop-apply">Применить кроп</button>
+      </div>
+    </section>
   </div>
 
   <script src="/static/app.js"></script>
