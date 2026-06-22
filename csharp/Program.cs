@@ -1,6 +1,6 @@
 using System.Text;
-using PdfiumViewer;
-using UglyToad.PdfPig;
+using PdfiumDocument = PdfiumViewer.PdfDocument;
+using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
 using SkiaSharp;
 
 var app = WebApplication.CreateBuilder(args).Build();
@@ -44,8 +44,8 @@ static class PdfComparator
 {
     public static ComparisonResult Compare(string leftPath, string rightPath, int precision)
     {
-        using var leftDoc = PdfDocument.Open(leftPath);
-        using var rightDoc = PdfDocument.Open(rightPath);
+        using var leftDoc = PdfPigDocument.Open(leftPath);
+        using var rightDoc = PdfPigDocument.Open(rightPath);
 
         var maxPages = Math.Max(leftDoc.NumberOfPages, rightDoc.NumberOfPages);
         var pages = new List<PageResult>(maxPages);
@@ -131,13 +131,13 @@ static class PdfComparator
 
     private static DiffImage RenderDiffImage(string leftPath, string rightPath, int pageIndex, int precision)
     {
-        using var leftDoc = PdfDocument.Load(leftPath);
-        using var rightDoc = PdfDocument.Load(rightPath);
+        using var leftDoc = PdfiumDocument.Load(leftPath);
+        using var rightDoc = PdfiumDocument.Load(rightPath);
         using var leftBmp = leftDoc.Render(pageIndex, 144, 144, true);
         using var rightBmp = rightDoc.Render(pageIndex, 144, 144, true);
 
-        using var leftImg = SKBitmap.Decode(BitmapToBytes(leftBmp)) ?? throw new InvalidOperationException("не удалось декодировать левую страницу");
-        using var rightImg = SKBitmap.Decode(BitmapToBytes(rightBmp)) ?? throw new InvalidOperationException("не удалось декодировать правую страницу");
+        using var leftImg = SKBitmap.Decode(ImageToBytes(leftBmp)) ?? throw new InvalidOperationException("не удалось декодировать левую страницу");
+        using var rightImg = SKBitmap.Decode(ImageToBytes(rightBmp)) ?? throw new InvalidOperationException("не удалось декодировать правую страницу");
 
         var threshold = PrecisionToThreshold(precision);
 
@@ -181,10 +181,10 @@ static class PdfComparator
         return Math.Max(1, (100 - precision) * 2);
     }
 
-    private static byte[] BitmapToBytes(System.Drawing.Bitmap bmp)
+    private static byte[] ImageToBytes(System.Drawing.Image img)
     {
         using var ms = new MemoryStream();
-        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+        img.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
         return ms.ToArray();
     }
 
@@ -309,6 +309,7 @@ static class Html
 </body>
 </html>
 """;
+    }
 
     private static string Error(string? error) => string.IsNullOrWhiteSpace(error) ? "" : $"<div class='error'>{WebUtility.HtmlEncode(error)}</div>";
 
