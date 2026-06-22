@@ -11,7 +11,7 @@
     <section class="hero card">
       <div class="eyebrow">PDF diff</div>
       <h1>Сравнение PDF чертежей</h1>
-      <p class="lead">Минималистичное сравнение PDF: загрузите два файла, задайте точность и получите только diff-изображения.</p>
+      <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
     </section>
 
     {% if error %}
@@ -32,14 +32,14 @@
             </button>
             <label class="upload-field" for="pdf1">
               <span class="sr-only">Выбрать PDF 1</span>
-              <div class="dropzone-art" aria-hidden="true">
-                <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
-                  <rect x="14" y="10" width="26" height="18" rx="4"></rect>
-                  <rect x="24" y="20" width="26" height="18" rx="4"></rect>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
                   <path d="M31 30v10M26 35h10"></path>
                 </svg>
-              </div>
-              <div class="slot-status slot-status-empty" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</div>
+              </span>
+              <span class="slot-status" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</span>
               <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
             </label>
           </section>
@@ -55,52 +55,40 @@
             </button>
             <label class="upload-field" for="pdf2">
               <span class="sr-only">Выбрать PDF 2</span>
-              <div class="dropzone-art" aria-hidden="true">
-                <svg viewBox="0 0 64 64" role="img" focusable="false" aria-hidden="true">
-                  <rect x="14" y="10" width="26" height="18" rx="4"></rect>
-                  <rect x="24" y="20" width="26" height="18" rx="4"></rect>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
                   <path d="M31 30v10M26 35h10"></path>
                 </svg>
-              </div>
-              <div class="slot-status slot-status-empty" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</div>
+              </span>
+              <span class="slot-status" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</span>
               <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
             </label>
           </section>
         </div>
 
-        <section class="precision-card">
-          <div class="precision-head">
-            <h3>Точность сравнения</h3>
-            <div class="precision-control">
-              <output class="precision-value">{{ precision or 50 }}</output>
-              <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
-            </div>
-          </div>
-        </section>
+        <div class="precision-row">
+          <label for="precision">Точность сравнения</label>
+          <output class="precision-value" for="precision">{{ precision or 50 }}</output>
+          <input id="precision" class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
+        </div>
 
         <div class="form-actions">
-          <button type="button" class="secondary" data-reset-all>
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M6 6v5h5"></path>
-              <path d="M18 18v-5h-5"></path>
-              <path d="M7.5 14A7 7 0 0 0 18 10.5 7 7 0 0 0 12 4a7 7 0 0 0-4.95 2.05L5 8.1"></path>
-              <path d="M16.5 10A7 7 0 0 0 6 13.5 7 7 0 0 0 12 20a7 7 0 0 0 4.95-2.05L19 15.9"></path>
-            </svg>
-            Обновить
-          </button>
-          <button type="submit">Сравнить PDF</button>
+          <button type="button" class="secondary" data-reset-all>Сбросить</button>
+          <button type="submit">Сравнить</button>
         </div>
       </form>
     </section>
 
     {% if pdf_result %}
       <section class="card results-card">
-        <div class="result-head">
+        <header class="result-head">
           <div>
-            <div class="eyebrow">PDF diff</div>
-            <h2>Diff-изображения</h2>
+            <div class="eyebrow">Результат</div>
+            <h2>Сравнение листов</h2>
           </div>
-        </div>
+        </header>
 
         <div class="results-body {% if pdf_result.pages|length > 1 %}results-body-with-sidebar{% endif %}">
           {% if pdf_result.pages|length > 1 %}
@@ -111,7 +99,7 @@
               </div>
               <nav class="page-nav page-nav-vertical" aria-label="Страницы PDF">
                 {% for p in pdf_result.pages %}
-                  <button type="button" class="page-nav-btn page-nav-item" data-page-target="page-{{ p.page_number }}" aria-label="Перейти к странице {{ p.page_number }}">
+                  <button type="button" class="page-nav-btn" data-page-target="page-{{ p.page_number }}" aria-label="Перейти к странице {{ p.page_number }}">
                     <span class="page-nav-index">{{ p.page_number }}</span>
                     <span class="page-nav-label">Лист {{ p.page_number }}</span>
                   </button>
@@ -124,9 +112,7 @@
             {% for p in pdf_result.pages %}
               <article class="page card" id="page-{{ p.page_number }}">
                 <div class="page-head">
-                  <div>
-                    <h3>Страница {{ p.page_number }}</h3>
-                  </div>
+                  <h3>Страница {{ p.page_number }}</h3>
                 </div>
 
                 {% if p.left_image_b64 and p.diff_image_b64 %}
@@ -145,22 +131,22 @@
                     </div>
                     <div class="slot-actions">
                       <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
-                      <button type="button" class="preview-btn" data-viewer-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+                      <button type="button" class="preview-btn" data-viewer-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Открыть</button>
                     </div>
                   </div>
                 {% else %}
                   <div class="page-note">{{ p.note or 'Сравнение недоступно для этой страницы' }}</div>
                 {% endif %}
-                </article>
+              </article>
             {% endfor %}
           </div>
         </div>
       </section>
     {% endif %}
-
+  </main>
 
   <div id="viewer" class="viewer hidden" aria-hidden="true">
-    <button id="viewer-close" class="viewer-close" type="button">×</button>
+    <button id="viewer-close" class="viewer-close" type="button" aria-label="Закрыть">×</button>
     <a id="viewer-download" class="viewer-download" download>Скачать</a>
     <img id="viewer-img" alt="preview">
   </div>
