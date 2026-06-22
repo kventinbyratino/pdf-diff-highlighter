@@ -3,8 +3,34 @@ const viewerImg = document.getElementById('viewer-img');
 const viewerClose = document.getElementById('viewer-close');
 const viewerDownload = document.getElementById('viewer-download');
 
+const viewerState = {
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  startOffsetX: 0,
+  startOffsetY: 0,
+};
+
+function applyViewerTransform() {
+  if (!viewerImg) return;
+  viewerImg.style.transform = `translate(${viewerState.offsetX}px, ${viewerState.offsetY}px) scale(${viewerState.scale})`;
+  viewerImg.classList.toggle('is-zoomed', viewerState.scale > 1);
+}
+
+function resetViewerZoom() {
+  viewerState.scale = 1;
+  viewerState.offsetX = 0;
+  viewerState.offsetY = 0;
+  viewerState.dragging = false;
+  applyViewerTransform();
+}
+
 function openViewer(src, downloadName = 'diff.png') {
   if (!viewer || !viewerImg || !viewerDownload) return;
+  resetViewerZoom();
   viewerImg.src = src;
   viewerDownload.href = src;
   viewerDownload.download = downloadName;
@@ -16,6 +42,7 @@ function closeViewer() {
   if (!viewer || !viewerImg) return;
   viewer.classList.add('hidden');
   viewer.setAttribute('aria-hidden', 'true');
+  resetViewerZoom();
   viewerImg.src = '';
 }
 
@@ -32,6 +59,43 @@ viewerClose?.addEventListener('click', closeViewer);
 viewer?.addEventListener('click', (e) => {
   if (e.target === viewer) closeViewer();
 });
+viewer?.addEventListener('wheel', (e) => {
+  if (viewer.classList.contains('hidden')) return;
+  e.preventDefault();
+  const direction = e.deltaY < 0 ? 1 : -1;
+  viewerState.scale = Math.min(4, Math.max(1, viewerState.scale + direction * 0.25));
+  if (viewerState.scale === 1) {
+    viewerState.offsetX = 0;
+    viewerState.offsetY = 0;
+  }
+  applyViewerTransform();
+}, { passive: false });
+viewerImg?.addEventListener('pointerdown', (e) => {
+  if (viewerState.scale <= 1) return;
+  e.preventDefault();
+  viewerState.dragging = true;
+  viewerState.dragStartX = e.clientX;
+  viewerState.dragStartY = e.clientY;
+  viewerState.startOffsetX = viewerState.offsetX;
+  viewerState.startOffsetY = viewerState.offsetY;
+  viewerImg.setPointerCapture?.(e.pointerId);
+  viewerImg.classList.add('is-dragging');
+});
+viewerImg?.addEventListener('pointermove', (e) => {
+  if (!viewerState.dragging) return;
+  viewerState.offsetX = viewerState.startOffsetX + e.clientX - viewerState.dragStartX;
+  viewerState.offsetY = viewerState.startOffsetY + e.clientY - viewerState.dragStartY;
+  applyViewerTransform();
+});
+const stopViewerDrag = (e) => {
+  if (!viewerState.dragging) return;
+  viewerState.dragging = false;
+  viewerImg?.releasePointerCapture?.(e.pointerId);
+  viewerImg?.classList.remove('is-dragging');
+};
+viewerImg?.addEventListener('pointerup', stopViewerDrag);
+viewerImg?.addEventListener('pointercancel', stopViewerDrag);
+viewerImg?.addEventListener('dragstart', (e) => e.preventDefault());
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && viewer && !viewer.classList.contains('hidden')) closeViewer();
 });
