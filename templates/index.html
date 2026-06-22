@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF Compare</title>
+  <title>Сравнение PDF чертежей</title>
   <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
   <main class="wrap">
     <section class="hero card">
       <div class="eyebrow">PDF diff</div>
-      <h1>PDF Compare</h1>
+      <h1>Сравнение PDF чертежей</h1>
       <p class="lead">Минималистичное сравнение PDF: загрузите два файла, задайте точность и получите только diff-изображения.</p>
     </section>
 
@@ -50,13 +50,12 @@
 
         <section class="precision-card">
           <div class="precision-head">
-            <div>
-              <h3>Точность сравнения</h3>
-              <p class="hint">Только нейтральные оттенки серого для подсказок и disabled.</p>
+            <h3>Точность сравнения</h3>
+            <div class="precision-control">
+              <output class="precision-value">{{ precision or 50 }}</output>
+              <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
             </div>
-            <output class="precision-value">{{ precision or 50 }}</output>
           </div>
-          <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
         </section>
 
         <button type="submit">Сравнить PDF</button>

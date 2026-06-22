@@ -134,6 +134,7 @@ h4 {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .slot-card,
@@ -141,7 +142,7 @@ h4 {
 .page {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 16px;
 }
 
@@ -150,6 +151,13 @@ h4 {
 .page {
   display: grid;
   gap: 12px;
+}
+
+.slot-card {
+  min-height: 190px;
+  border-radius: 12px;
+  background: #fbfbfb;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.04);
 }
 
 .slot-card.dragover {
@@ -250,6 +258,27 @@ button.secondary,
 
 button[type='submit'] {
   width: fit-content;
+  display: block;
+  margin: 8px auto 0;
+}
+
+.precision-card {
+  width: min(50%, 720px);
+  min-width: 520px;
+  justify-self: start;
+}
+
+.precision-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.precision-control {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
 .precision-value {
