@@ -75,33 +75,46 @@
           </div>
         </div>
 
-        {% if pdf_result.pages|length > 1 %}
-          <nav class="page-nav" aria-label="Страницы PDF">
+        <div class="results-body {% if pdf_result.pages|length > 1 %}results-body-with-sidebar{% endif %}">
+          {% if pdf_result.pages|length > 1 %}
+            <aside class="pages-sidebar" aria-label="Меню листов">
+              <div class="pages-sidebar-head">
+                <div class="eyebrow">Листы</div>
+                <h3>Меню листов</h3>
+              </div>
+              <nav class="page-nav page-nav-vertical" aria-label="Страницы PDF">
+                {% for p in pdf_result.pages %}
+                  <button type="button" class="page-nav-btn page-nav-item" data-page-target="page-{{ p.page_number }}" aria-label="Перейти к странице {{ p.page_number }}">
+                    <span class="page-nav-index">{{ p.page_number }}</span>
+                    <span class="page-nav-label">Лист {{ p.page_number }}</span>
+                  </button>
+                {% endfor %}
+              </nav>
+            </aside>
+          {% endif %}
+
+          <div class="results-pages">
             {% for p in pdf_result.pages %}
-              <button type="button" class="page-nav-btn" data-page-target="page-{{ p.page_number }}">{{ p.page_number }}</button>
-            {% endfor %}
-          </nav>
-        {% endif %}
-
-        {% for p in pdf_result.pages %}
-          <article class="page card" id="page-{{ p.page_number }}">
-            <div class="page-head">
-              <div>
-                <h3>Страница {{ p.page_number }}</h3>
-              </div>
-            </div>
-
-            {% if p.diff_image_b64 %}
-              <div class="diff-wrap">
-                <div class="slot-actions">
-                  <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
-                  <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+              <article class="page card" id="page-{{ p.page_number }}">
+                <div class="page-head">
+                  <div>
+                    <h3>Страница {{ p.page_number }}</h3>
+                  </div>
                 </div>
-                <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
-              </div>
-            {% endif %}
-          </article>
-        {% endfor %}
+
+                {% if p.diff_image_b64 %}
+                  <div class="diff-wrap">
+                    <div class="slot-actions">
+                      <a class="download" href="data:image/png;base64,{{ p.diff_image_b64 }}" download="page-{{ p.page_number }}-diff.png">Скачать PNG</a>
+                      <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ p.diff_image_b64 }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+                    </div>
+                    <img class="diff-thumb" src="data:image/png;base64,{{ p.diff_image_b64 }}" alt="diff page {{ p.page_number }}">
+                  </div>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        </div>
       </section>
     {% endif %}
   </main>

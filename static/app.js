@@ -499,13 +499,48 @@ function bindDropzones() {
 }
 
 function bindPageNav() {
-  document.querySelectorAll('[data-page-target]').forEach((button) => {
+  const buttons = Array.from(document.querySelectorAll('[data-page-target]'));
+  if (!buttons.length) return;
+
+  const setActive = (targetId) => {
+    buttons.forEach((button) => {
+      const active = button.dataset.pageTarget === targetId;
+      button.classList.toggle('is-active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  };
+
+  buttons.forEach((button) => {
     button.addEventListener('click', () => {
       const targetId = button.dataset.pageTarget;
       const target = targetId ? document.getElementById(targetId) : null;
+      setActive(targetId);
       target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+
+  const pages = buttons
+    .map((button) => document.getElementById(button.dataset.pageTarget || ''))
+    .filter(Boolean);
+
+  if (pages.length && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) setActive(visible.target.id);
+      },
+      { rootMargin: '-25% 0px -60% 0px', threshold: [0.18, 0.35, 0.55] },
+    );
+
+    pages.forEach((page) => observer.observe(page));
+    setActive(pages[0].id);
+    return;
+  }
+
+  setActive(pages[0]?.id || buttons[0].dataset.pageTarget || '');
 }
 
 function bindCacheButtons() {
