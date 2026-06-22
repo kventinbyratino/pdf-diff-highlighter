@@ -22,6 +22,14 @@
       <form method="post" action="compare" enctype="multipart/form-data" class="card panel">
         <div class="upload-grid">
           <section class="slot-card dropzone" data-target="pdf1">
+            <button type="button" class="slot-clear" data-clear-file="pdf1" aria-label="Удалить чертеж 1" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
             <label class="upload-field" for="pdf1">
               <span class="sr-only">Выбрать PDF 1</span>
               <div class="dropzone-art" aria-hidden="true">
@@ -37,6 +45,14 @@
           </section>
 
           <section class="slot-card dropzone" data-target="pdf2">
+            <button type="button" class="slot-clear" data-clear-file="pdf2" aria-label="Удалить чертеж 2" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
             <label class="upload-field" for="pdf2">
               <span class="sr-only">Выбрать PDF 2</span>
               <div class="dropzone-art" aria-hidden="true">
@@ -62,7 +78,18 @@
           </div>
         </section>
 
-        <button type="submit">Сравнить PDF</button>
+        <div class="form-actions">
+          <button type="button" class="secondary" data-reset-all>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6 6v5h5"></path>
+              <path d="M18 18v-5h-5"></path>
+              <path d="M7.5 14A7 7 0 0 0 18 10.5 7 7 0 0 0 12 4a7 7 0 0 0-4.95 2.05L5 8.1"></path>
+              <path d="M16.5 10A7 7 0 0 0 6 13.5 7 7 0 0 0 12 20a7 7 0 0 0 4.95-2.05L19 15.9"></path>
+            </svg>
+            Обновить
+          </button>
+          <button type="submit">Сравнить PDF</button>
+        </div>
       </form>
     </section>
 

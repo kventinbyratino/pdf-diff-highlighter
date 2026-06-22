@@ -28,6 +28,8 @@ const cropState = {
   startY: 0,
 };
 
+let compareRequestSeq = 0;
+
 function setImageStatus(message, tone = 'muted') {
   if (!imageStatus) return;
   imageStatus.textContent = message;
@@ -39,9 +41,13 @@ function updateUploadStatus(input) {
   if (!status) return;
   const label = input.id === 'pdf1' ? 'Чертеж 1' : input.id === 'pdf2' ? 'Чертеж 2' : input.id;
   const loaded = Boolean(input.files?.[0]);
+  const zone = input.closest('.slot-card');
+  const clearButton = zone?.querySelector('[data-clear-file]');
   status.textContent = `${label} — статус: ${loaded ? 'загружен' : 'не загружен'}`;
   status.classList.toggle('slot-status-loaded', loaded);
   status.classList.toggle('slot-status-empty', !loaded);
+  zone?.classList.toggle('has-file', loaded);
+  if (clearButton) clearButton.hidden = !loaded;
 }
 
 function setPreviewSlot(slotId, file) {
@@ -74,6 +80,73 @@ function applyFileToInput(input, file) {
   dt.items.add(file);
   input.files = dt.files;
   input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function clearFileInput(input) {
+  if (!input) return;
+  input.value = '';
+  compareRequestSeq += 1;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function formHasSelectedFiles(form) {
+  return Boolean(form?.querySelector('.file-input')?.files?.length) &&
+    Array.from(form.querySelectorAll('.file-input')).every((input) => Boolean(input.files?.[0]));
+}
+
+function replaceResultsAndErrors(doc) {
+  const nextError = doc.querySelector('.error');
+  const currentError = document.querySelector('.error');
+  if (nextError) {
+    if (currentError) currentError.replaceWith(nextError);
+    else document.querySelector('.hero')?.insertAdjacentElement('afterend', nextError);
+  } else if (currentError) {
+    currentError.remove();
+  }
+
+  const nextResults = doc.querySelector('.results-card');
+  const currentResults = document.querySelector('.results-card');
+  if (nextResults) {
+    if (currentResults) currentResults.replaceWith(nextResults);
+    else document.querySelector('.workspace')?.insertAdjacentElement('afterend', nextResults);
+  } else if (currentResults) {
+    currentResults.remove();
+  }
+
+  bindPageNav();
+  bindPreviewThumbs();
+}
+
+async function submitCompareForm(form) {
+  const requestSeq = ++compareRequestSeq;
+  const response = await fetch(form.action || window.location.href, {
+    method: (form.method || 'POST').toUpperCase(),
+    body: new FormData(form),
+    headers: { 'X-Requested-With': 'fetch' },
+  });
+  const html = await response.text();
+  if (requestSeq !== compareRequestSeq) return;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  replaceResultsAndErrors(doc);
+}
+
+function bindCompareForm() {
+  document.querySelectorAll('form[action="compare"]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await submitCompareForm(form);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Не удалось обновить сравнение';
+        setImageStatus(message, 'bad');
+      }
+    });
+
+    const precisionInput = form.querySelector('.precision-input');
+    precisionInput?.addEventListener('change', () => {
+      if (formHasSelectedFiles(form)) form.requestSubmit();
+    });
+  });
 }
 
 function openCacheDb() {
@@ -272,6 +345,14 @@ function bindDropzone(zone) {
   input.addEventListener('change', () => {
     updateUploadStatus(input);
     setPreviewSlot(input.id, input.files?.[0] || null);
+  });
+
+  const clearButton = zone.querySelector('[data-clear-file]');
+  clearButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearFileInput(input);
+    input.focus();
   });
 
   zone.addEventListener('dragover', (event) => {
@@ -498,6 +579,16 @@ function bindDropzones() {
   document.querySelectorAll('.dropzone').forEach((zone) => bindDropzone(zone));
 }
 
+function bindResetButtons() {
+  document.querySelectorAll('[data-reset-all]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.file-input').forEach((input) => {
+        clearFileInput(input);
+      });
+    });
+  });
+}
+
 function bindPageNav() {
   const buttons = Array.from(document.querySelectorAll('[data-page-target]'));
   if (!buttons.length) return;
@@ -594,6 +685,8 @@ function init() {
   bindPrecisionInputs();
   bindDropzones();
   document.querySelectorAll('.file-input').forEach((input) => updateUploadStatus(input));
+  bindResetButtons();
+  bindCompareForm();
   bindCacheButtons();
   bindCaptureButtons();
   bindCropButtons();
