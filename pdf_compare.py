@@ -90,7 +90,7 @@ def _compare_rendered_pages(left: Image.Image, right: Image.Image, precision: in
     if mask.getbbox() is None:
         return right.copy(), '', False
 
-    highlight = Image.new('RGB', left.size, 'black')
+    highlight = Image.new('RGB', left.size, 'red')
     merged = Image.composite(highlight, right, mask)
     blended = Image.blend(right, merged, 0.62)
     return blended, f'визуальные изменения: mean diff={mean:.2f}, threshold={threshold}', True

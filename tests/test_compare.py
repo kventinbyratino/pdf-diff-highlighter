@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+import base64
+import io
 
 import fitz
+from PIL import Image
 
 from app import app
 from pdf_compare import _precision_to_threshold, compare_pdfs
@@ -48,6 +51,19 @@ def test_compare_detects_text_and_visual_changes():
         assert first.text_rows
         assert first.left_image_b64
         assert first.diff_image_b64
+        diff_image = Image.open(io.BytesIO(base64.b64decode(first.diff_image_b64))).convert('RGB')
+        red_pixels = 0
+        pixels = diff_image.load()
+        assert pixels is not None
+        for x in range(diff_image.width):
+            for y in range(diff_image.height):
+                pixel = pixels[x, y]
+                if not isinstance(pixel, tuple):
+                    continue
+                r, g, b = pixel[:3]
+                if r > 150 and g < 120 and b < 120:
+                    red_pixels += 1
+        assert red_pixels > 0
         assert {row.kind for row in first.text_rows} <= {'Удалено', 'Добавлено'}
 
         second = result['pages'][1]

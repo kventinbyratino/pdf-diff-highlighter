@@ -165,10 +165,13 @@ function bindPrecisionInputs() {
 function bindCompareSliders() {
   document.querySelectorAll('[data-compare-slider]').forEach((slider) => {
     const range = slider.querySelector('[data-compare-range]');
+    const stage = slider.querySelector('.compare-stage');
     if (!range) return;
 
     const sync = () => {
-      slider.style.setProperty('--split', `${range.value}%`);
+      const split = `${range.value}%`;
+      slider.style.setProperty('--split', split);
+      stage?.style.setProperty('--split', split);
     };
 
     range.addEventListener('input', sync);
