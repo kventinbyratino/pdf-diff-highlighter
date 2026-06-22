@@ -9,9 +9,9 @@
 <body>
   <main class="wrap">
     <section class="hero card">
-      <div class="eyebrow">PDF • скриншоты • ручной кроп</div>
+      <div class="eyebrow">PDF diff</div>
       <h1>PDF Compare</h1>
-      <p class="lead">Сравнивайте PDF, загруженные изображения и скриншоты с экрана. Кадр можно снять в браузере или через ОС, а чертёж — вырезать мышью перед сравнением.</p>
+      <p class="lead">Минималистичное сравнение PDF: загрузите два файла, задайте точность и получите только diff-изображения.</p>
     </section>
 
     {% if error %}
@@ -25,7 +25,7 @@
             <div class="eyebrow">PDF</div>
             <h2>Сравнение документов</h2>
           </div>
-          <p class="panel-lead">Загрузите 2 многостраничных PDF. Поддерживаются drag and drop, кэш последних файлов и настройка чувствительности.</p>
+          <p class="panel-lead">Загрузите 2 многостраничных PDF и настройте чувствительность.</p>
         </div>
 
         <div class="upload-grid">
@@ -36,10 +36,6 @@
             </div>
             <p class="hint">Перетащите PDF сюда или выберите файл</p>
             <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
-            <div class="cache-panel">
-              <button type="button" class="cache-btn" data-cache-save="pdf1">Сохранить в кэш</button>
-              <button type="button" class="cache-btn secondary" data-cache-load="pdf1">Загрузить из кэша</button>
-            </div>
           </section>
 
           <section class="slot-card dropzone" data-target="pdf2">
@@ -49,10 +45,6 @@
             </div>
             <p class="hint">Перетащите PDF сюда или выберите файл</p>
             <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
-            <div class="cache-panel">
-              <button type="button" class="cache-btn" data-cache-save="pdf2">Сохранить в кэш</button>
-              <button type="button" class="cache-btn secondary" data-cache-load="pdf2">Загрузить из кэша</button>
-            </div>
           </section>
         </div>
 
@@ -60,7 +52,7 @@
           <div class="precision-head">
             <div>
               <h3>Точность сравнения</h3>
-              <p class="hint">Более высокий уровень — более строгий поиск мелких отличий.</p>
+              <p class="hint">Только нейтральные оттенки серого для подсказок и disabled.</p>
             </div>
             <output class="precision-value">{{ precision or 50 }}</output>
           </div>
@@ -69,69 +61,6 @@
 
         <button type="submit">Сравнить PDF</button>
       </form>
-
-      <form method="post" action="compare-images" enctype="multipart/form-data" class="card panel" id="image-form">
-        <div class="panel-head">
-          <div>
-            <div class="eyebrow">Скриншоты</div>
-            <h2>Сравнение экранов</h2>
-          </div>
-          <p class="panel-lead">Загрузите изображения, снимите экран браузера или ОС и при необходимости вырежьте нужную область мышью.</p>
-        </div>
-
-        <div class="shot-grid">
-          <article class="slot-card dropzone" data-target="shot1">
-            <div class="slot-head">
-              <h3>Кадр 1</h3>
-              <span class="file-name" data-file-name="shot1">Файл не выбран</span>
-            </div>
-            <p class="hint">PNG, JPG, WebP или снимок с экрана</p>
-            <input type="file" id="shot1" name="shot1" accept="image/*" required class="file-input">
-            <div class="slot-actions">
-              <button type="button" data-capture-browser="shot1">Снять в браузере</button>
-              <button type="button" class="secondary" data-capture-screen="shot1">Снять экран ОС</button>
-              <button type="button" class="secondary" data-crop="shot1">Вырезать чертёж</button>
-            </div>
-            <div class="slot-preview-shell">
-              <img class="slot-preview" data-preview="shot1" alt="Превью кадра 1" hidden>
-              <div class="slot-empty">Превью появится здесь</div>
-            </div>
-          </article>
-
-          <article class="slot-card dropzone" data-target="shot2">
-            <div class="slot-head">
-              <h3>Кадр 2</h3>
-              <span class="file-name" data-file-name="shot2">Файл не выбран</span>
-            </div>
-            <p class="hint">Загрузите второй кадр или снимите другую область</p>
-            <input type="file" id="shot2" name="shot2" accept="image/*" required class="file-input">
-            <div class="slot-actions">
-              <button type="button" data-capture-browser="shot2">Снять в браузере</button>
-              <button type="button" class="secondary" data-capture-screen="shot2">Снять экран ОС</button>
-              <button type="button" class="secondary" data-crop="shot2">Вырезать чертёж</button>
-            </div>
-            <div class="slot-preview-shell">
-              <img class="slot-preview" data-preview="shot2" alt="Превью кадра 2" hidden>
-              <div class="slot-empty">Превью появится здесь</div>
-            </div>
-          </article>
-        </div>
-
-        <p id="image-status" class="status muted"></p>
-
-        <section class="precision-card">
-          <div class="precision-head">
-            <div>
-              <h3>Точность сравнения</h3>
-              <p class="hint">Этот же ползунок влияет на PDF и на изображения.</p>
-            </div>
-            <output class="precision-value">{{ precision or 50 }}</output>
-          </div>
-          <input class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 50 }}">
-        </section>
-
-        <button type="submit">Сравнить изображения</button>
-      </form>
     </section>
 
     {% if pdf_result %}
@@ -139,7 +68,7 @@
         <div class="result-head">
           <div>
             <div class="eyebrow">PDF diff</div>
-            <h2>Результат сравнения PDF</h2>
+            <h2>Diff-изображения</h2>
           </div>
         </div>
 
@@ -164,55 +93,12 @@
         {% endfor %}
       </section>
     {% endif %}
-
-    {% if image_result %}
-      <section class="card results-card">
-        <div class="result-head">
-          <div>
-            <div class="eyebrow">Скриншоты</div>
-            <h2>Результат сравнения изображений</h2>
-          </div>
-        </div>
-
-        {% if image_result.diff_image_b64 %}
-          <div class="diff-wrap">
-            <div class="slot-actions">
-              <a class="download" href="data:image/png;base64,{{ image_result.diff_image_b64 }}" download="image-diff.png">Скачать PNG</a>
-              <button type="button" class="preview-btn" data-src="data:image/png;base64,{{ image_result.diff_image_b64 }}" data-download="image-diff.png">Полноэкранный просмотр</button>
-            </div>
-            <img class="diff-thumb" src="data:image/png;base64,{{ image_result.diff_image_b64 }}" alt="image diff">
-          </div>
-        {% endif %}
-      </section>
-    {% endif %}
   </main>
 
   <div id="viewer" class="viewer hidden" aria-hidden="true">
     <button id="viewer-close" class="viewer-close" type="button">×</button>
     <a id="viewer-download" class="viewer-download" download>Скачать</a>
     <img id="viewer-img" alt="preview">
-  </div>
-
-  <div id="crop-modal" class="modal hidden" aria-hidden="true">
-    <div class="modal-backdrop" data-crop-close></div>
-    <section class="modal-card crop-card">
-      <div class="modal-head">
-        <div>
-          <div class="eyebrow">Вырезать чертёж</div>
-          <h2>Ручной кроп</h2>
-        </div>
-        <button id="crop-close" class="viewer-close" type="button">×</button>
-      </div>
-      <p id="crop-hint" class="muted">Потяните мышью, чтобы выделить область. Сохраняется только выбранный фрагмент.</p>
-      <div class="crop-stage" id="crop-stage">
-        <img id="crop-image" alt="Кадр для кропа">
-        <div id="crop-selection" class="crop-selection hidden"></div>
-      </div>
-      <div class="slot-actions modal-actions">
-        <button type="button" id="crop-reset" class="secondary">Сбросить</button>
-        <button type="button" id="crop-apply">Применить кроп</button>
-      </div>
-    </section>
   </div>
 
   <script src="static/app.js"></script>
