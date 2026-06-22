@@ -53,7 +53,7 @@
 **Acceptance:**
 - явно отмечены проблемные пакеты:
   - `PyMuPDF` — AGPL / commercial dual license;
-  - `SixLabors.ImageSharp` — split license;
+  - старый пакет удалён; используется `SkiaSharp` (MIT);
   - `PdfiumViewer` и native PDFium — отдельная проверка на распространение бинарей.
 
 ### Task 3: Проверить транзитивные зависимости
@@ -89,9 +89,11 @@
 **Acceptance:**
 - можно заменить PyMuPDF без ухудшения основной функции сравнения.
 
-### Task 5: Подобрать безопасную замену для ImageSharp
+### Task 5: Подобрать безопасную замену для SkiaSharp
 
 **Objective:** найти C#-библиотеку для обработки изображений с более простыми условиями коммерческого использования.
+
+**Result:** в C#-версии выбран `SkiaSharp` с MIT-лицензией.
 
 **Files:**
 - `csharp/PdfDiff.csproj`
@@ -101,7 +103,8 @@
 - альтернативный пакет не несёт split/commercial условий, несовместимых с целями проекта.
 
 **Acceptance:**
-- C#-версия остаётся работоспособной без ImageSharp license friction.
+- C#-версия остаётся работоспособной с `SkiaSharp`.
+
 
 ### Task 6: Проверить PdfiumViewer и PDFium distribution rules
 

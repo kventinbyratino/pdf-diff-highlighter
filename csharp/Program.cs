@@ -1,10 +1,7 @@
 using System.Text;
 using PdfiumViewer;
 using UglyToad.PdfPig;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Formats.Png;
+using SkiaSharp;
 
 var app = WebApplication.CreateBuilder(args).Build();
 
@@ -127,43 +124,41 @@ static class PdfComparator
         using var leftBmp = leftDoc.Render(pageIndex, 144, 144, true);
         using var rightBmp = rightDoc.Render(pageIndex, 144, 144, true);
 
-        using var leftImg = Image.Load<Rgba32>(BitmapToBytes(leftBmp));
-        using var rightImg = Image.Load<Rgba32>(BitmapToBytes(rightBmp));
+        using var leftImg = SKBitmap.Decode(BitmapToBytes(leftBmp)) ?? throw new InvalidOperationException("не удалось декодировать левую страницу");
+        using var rightImg = SKBitmap.Decode(BitmapToBytes(rightBmp)) ?? throw new InvalidOperationException("не удалось декодировать правую страницу");
 
         if (leftImg.Width != rightImg.Width || leftImg.Height != rightImg.Height)
         {
-            var canvas = new Image<Rgba32>(leftImg.Width + rightImg.Width + 24, Math.Max(leftImg.Height, rightImg.Height), new Rgba32(255, 255, 255));
-            canvas.Mutate(x =>
-            {
-                x.DrawImage(leftImg, new Point(0, 0), 1f);
-                x.DrawImage(rightImg, new Point(leftImg.Width + 24, 0), 1f);
-            });
-            return new DiffImage(ToDataUrl(canvas), true, $"разный размер страниц: {leftImg.Width}x{leftImg.Height} vs {rightImg.Width}x{rightImg.Height}");
+            using var canvasBmp = new SKBitmap(leftImg.Width + rightImg.Width + 24, Math.Max(leftImg.Height, rightImg.Height), SKColorType.Bgra8888, SKAlphaType.Premul);
+            using var canvas = new SKCanvas(canvasBmp);
+            canvas.Clear(SKColors.White);
+            canvas.DrawBitmap(leftImg, 0, 0);
+            canvas.DrawBitmap(rightImg, leftImg.Width + 24, 0);
+            return new DiffImage(ToDataUrl(canvasBmp), true, $"разный размер страниц: {leftImg.Width}x{leftImg.Height} vs {rightImg.Width}x{rightImg.Height}");
         }
 
+        using var diffBmp = new SKBitmap(leftImg.Width, leftImg.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
         var changed = false;
-        using (var bmp = leftImg.Clone())
+        for (var y = 0; y < leftImg.Height; y++)
         {
-            for (var y = 0; y < leftImg.Height; y++)
+            for (var x = 0; x < leftImg.Width; x++)
             {
-                for (var x = 0; x < leftImg.Width; x++)
+                var l = leftImg.GetPixel(x, y);
+                var r = rightImg.GetPixel(x, y);
+                var d = Math.Abs(l.Red - r.Red) + Math.Abs(l.Green - r.Green) + Math.Abs(l.Blue - r.Blue);
+                if (d > 45)
                 {
-                    var l = leftImg[x, y];
-                    var r = rightImg[x, y];
-                    var d = Math.Abs(l.R - r.R) + Math.Abs(l.G - r.G) + Math.Abs(l.B - r.B);
-                    if (d > 45)
-                    {
-                        bmp[x, y] = new Rgba32(255, 64, 64);
-                        changed = true;
-                    }
-                    else
-                    {
-                        bmp[x, y] = r;
-                    }
+                    diffBmp.SetPixel(x, y, new SKColor(255, 64, 64));
+                    changed = true;
+                }
+                else
+                {
+                    diffBmp.SetPixel(x, y, r);
                 }
             }
-            return new DiffImage(ToDataUrl(bmp), changed, changed ? "визуальные изменения обнаружены" : string.Empty);
         }
+
+        return new DiffImage(ToDataUrl(diffBmp), changed, changed ? "визуальные изменения обнаружены" : string.Empty);
     }
 
     private static byte[] BitmapToBytes(System.Drawing.Bitmap bmp)
@@ -173,11 +168,11 @@ static class PdfComparator
         return ms.ToArray();
     }
 
-    private static string ToDataUrl(Image<Rgba32> img)
+    private static string ToDataUrl(SKBitmap bitmap)
     {
-        using var ms = new MemoryStream();
-        img.Save(ms, new PngEncoder());
-        return "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return "data:image/png;base64," + Convert.ToBase64String(data.ToArray());
     }
 }
 
