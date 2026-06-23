@@ -9,7 +9,13 @@ import fitz
 from PIL import Image
 
 from app import app
-from pdf_compare import _compare_rendered_pages, _precision_to_threshold, compare_pdfs
+from pdf_compare import (
+    _compare_rendered_pages,
+    _precision_to_threshold,
+    compare_pdf_area,
+    compare_pdfs,
+    find_matching_area,
+)
 
 COLORS = {
     'blue': (0, 0, 1),
@@ -146,3 +152,70 @@ def test_compare_route_renders_before_after_slider():
 def test_compare_overlay_shows_mask_on_right_side():
     css = Path('static/style.css').read_text()
     assert 'clip-path: inset(0 0 0 var(--split, 50%));' in css
+
+
+def make_area_pdf(path: Path, offset_x: float = 0, offset_y: float = 0, changed: bool = False) -> None:
+    doc = fitz.open()
+    page = doc.new_page(width=420, height=300)
+    ox, oy = offset_x, offset_y
+    page.draw_rect(fitz.Rect(90 + ox, 70 + oy, 230 + ox, 160 + oy), color=(0, 0, 0), width=1.5)
+    page.draw_line((90 + ox, 115 + oy), (230 + ox, 115 + oy), color=(0, 0, 0), width=1.2)
+    page.draw_line((160 + ox, 70 + oy), (160 + ox, 160 + oy), color=(0, 0, 0), width=1.2)
+    if changed:
+        page.draw_line((120 + ox, 90 + oy), (210 + ox, 145 + oy), color=(0, 0, 0), width=1.2)
+    doc.save(path)
+    doc.close()
+
+
+def test_find_matching_area_detects_shifted_region():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        left = tmp_path / 'left.pdf'
+        right = tmp_path / 'right.pdf'
+        make_area_pdf(left)
+        make_area_pdf(right, offset_x=35, offset_y=25, changed=True)
+
+        result = find_matching_area(
+            str(left),
+            str(right),
+            {'x': 120, 'y': 90, 'width': 260, 'height': 170},
+        )
+
+    assert result['status'] in {'ok', 'low_confidence'}
+    assert result['confidence'] > 0.65
+    assert abs(result['targetRect']['x'] - 172) <= 20
+    assert abs(result['targetRect']['y'] - 128) <= 20
+
+
+def test_compare_pdf_area_returns_single_area_result():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        left = tmp_path / 'left.pdf'
+        right = tmp_path / 'right.pdf'
+        make_area_pdf(left)
+        make_area_pdf(right, offset_x=35, offset_y=25, changed=True)
+
+        result = compare_pdf_area(
+            str(left),
+            str(right),
+            source_rect={'x': 120, 'y': 90, 'width': 260, 'height': 170},
+            target_rect={'x': 172, 'y': 128, 'width': 260, 'height': 170},
+            precision=50,
+        )
+
+    assert result['area_mode'] is True
+    assert len(result['pages']) == 1
+    assert result['pages'][0].left_image_b64
+    assert result['pages'][0].diff_image_b64
+
+
+def test_area_button_and_modal_exist():
+    client = app.test_client()
+    response = client.get('/')
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'Сравнить область' in html
+    assert 'data-area-mode' in html
+    assert 'data-area-canvas="left"' in html
+    assert 'data-area-canvas="right"' in html

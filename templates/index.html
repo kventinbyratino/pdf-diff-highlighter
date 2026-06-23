@@ -76,6 +76,7 @@
 
         <div class="form-actions">
           <button type="button" class="secondary" data-reset-all>Сбросить</button>
+          <button type="button" class="secondary" data-area-mode>Сравнить область</button>
           <button type="submit">Сравнить</button>
         </div>
       </form>
@@ -144,6 +145,39 @@
       </section>
     {% endif %}
   </main>
+
+  <div id="area-modal" class="area-modal hidden" aria-hidden="true">
+    <div class="area-dialog card" role="dialog" aria-modal="true" aria-label="Сравнить область">
+      <header class="area-head">
+        <div>
+          <div class="eyebrow">Область</div>
+          <h2>Сравнить область</h2>
+        </div>
+        <button type="button" class="secondary" data-area-close>Закрыть</button>
+      </header>
+      <p class="area-status" data-area-status>Выделите область на исходном чертеже.</p>
+      <div class="area-grid">
+        <section>
+          <h3>Исходный файл</h3>
+          <div class="area-canvas" data-area-canvas="left">
+            <img alt="Исходный лист" data-area-image="left">
+            <div class="area-rect" data-area-rect="left" hidden></div>
+          </div>
+        </section>
+        <section>
+          <h3>Изменённый файл</h3>
+          <div class="area-canvas" data-area-canvas="right">
+            <img alt="Изменённый лист" data-area-image="right">
+            <div class="area-rect" data-area-rect="right" hidden></div>
+          </div>
+        </section>
+      </div>
+      <div class="area-actions">
+        <button type="button" class="secondary" data-area-detect>Найти область на втором</button>
+        <button type="button" data-area-compare disabled>Сравнить выбранную область</button>
+      </div>
+    </div>
+  </div>
 
   <div id="viewer" class="viewer hidden" aria-hidden="true">
     <button id="viewer-close" class="viewer-close" type="button" aria-label="Закрыть">×</button>

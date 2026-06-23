@@ -490,6 +490,95 @@ button.secondary:hover {
   background: var(--panel-soft);
 }
 
+.area-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.area-modal.hidden {
+  display: none;
+}
+
+.area-dialog {
+  width: min(1500px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 16px;
+  background: var(--bg);
+}
+
+.area-head,
+.area-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.area-status {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.area-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.area-grid section {
+  min-width: 0;
+}
+
+.area-canvas {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  user-select: none;
+  touch-action: none;
+}
+
+.area-canvas img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+.area-rect {
+  position: absolute;
+  border: 2px solid var(--text);
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0.42);
+  cursor: move;
+}
+
+.area-rect::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--text);
+  background: var(--bg);
+}
+
 .viewer {
   position: fixed;
   inset: 0;
@@ -553,6 +642,7 @@ button.secondary:hover {
 
 @media (max-width: 1080px) {
   .upload-grid,
+  .area-grid,
   .results-body-with-sidebar {
     grid-template-columns: 1fr;
   }

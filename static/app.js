@@ -222,6 +222,210 @@ function bindPageNav() {
   setActive(pages[0]?.id || buttons[0].dataset.pageTarget || '');
 }
 
+const areaState = {
+  form: null,
+  left: null,
+  right: null,
+  sourceRect: null,
+  targetRect: null,
+  active: null,
+};
+
+function areaFormData() {
+  const data = new FormData(areaState.form);
+  data.append('page', '0');
+  return data;
+}
+
+function appendRect(data, prefix, rect) {
+  data.append(`${prefix}[x]`, Math.round(rect.x));
+  data.append(`${prefix}[y]`, Math.round(rect.y));
+  data.append(`${prefix}[width]`, Math.round(rect.width));
+  data.append(`${prefix}[height]`, Math.round(rect.height));
+}
+
+function areaSetStatus(message) {
+  const node = document.querySelector('[data-area-status]');
+  if (node) node.textContent = message;
+}
+
+function areaOpen() {
+  const modal = document.getElementById('area-modal');
+  modal?.classList.remove('hidden');
+  modal?.setAttribute('aria-hidden', 'false');
+}
+
+function areaClose() {
+  const modal = document.getElementById('area-modal');
+  modal?.classList.add('hidden');
+  modal?.setAttribute('aria-hidden', 'true');
+}
+
+function clientPointToImage(canvas, meta, event) {
+  const box = canvas.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(meta.width, ((event.clientX - box.left) / box.width) * meta.width)),
+    y: Math.max(0, Math.min(meta.height, ((event.clientY - box.top) / box.height) * meta.height)),
+  };
+}
+
+function clampAreaRect(rect, meta) {
+  const width = Math.max(1, Math.min(rect.width, meta.width));
+  const height = Math.max(1, Math.min(rect.height, meta.height));
+  return {
+    x: Math.max(0, Math.min(rect.x, meta.width - width)),
+    y: Math.max(0, Math.min(rect.y, meta.height - height)),
+    width,
+    height,
+  };
+}
+
+function drawAreaRect(side) {
+  const meta = areaState[side];
+  const rect = side === 'left' ? areaState.sourceRect : areaState.targetRect;
+  const node = document.querySelector(`[data-area-rect="${side}"]`);
+  if (!node || !meta || !rect) return;
+  node.hidden = false;
+  node.style.left = `${(rect.x / meta.width) * 100}%`;
+  node.style.top = `${(rect.y / meta.height) * 100}%`;
+  node.style.width = `${(rect.width / meta.width) * 100}%`;
+  node.style.height = `${(rect.height / meta.height) * 100}%`;
+}
+
+function setAreaImages(payload) {
+  areaState.left = payload.left;
+  areaState.right = payload.right;
+  areaState.sourceRect = null;
+  areaState.targetRect = null;
+  ['left', 'right'].forEach((side) => {
+    const img = document.querySelector(`[data-area-image="${side}"]`);
+    const rect = document.querySelector(`[data-area-rect="${side}"]`);
+    if (img) img.src = `data:image/png;base64,${payload[side].image}`;
+    if (rect) rect.hidden = true;
+  });
+  document.querySelector('[data-area-compare]')?.setAttribute('disabled', 'disabled');
+  areaSetStatus('Выделите область на исходном чертеже.');
+}
+
+function bindAreaSelection() {
+  const leftCanvas = document.querySelector('[data-area-canvas="left"]');
+  leftCanvas?.addEventListener('pointerdown', (event) => {
+    if (!areaState.left) return;
+    event.preventDefault();
+    const start = clientPointToImage(leftCanvas, areaState.left, event);
+    areaState.active = { side: 'left', mode: 'draw', start };
+    areaState.sourceRect = { x: start.x, y: start.y, width: 1, height: 1 };
+    drawAreaRect('left');
+    leftCanvas.setPointerCapture?.(event.pointerId);
+  });
+  leftCanvas?.addEventListener('pointermove', (event) => {
+    if (areaState.active?.side !== 'left' || !areaState.left) return;
+    const point = clientPointToImage(leftCanvas, areaState.left, event);
+    const start = areaState.active.start;
+    areaState.sourceRect = {
+      x: Math.min(start.x, point.x),
+      y: Math.min(start.y, point.y),
+      width: Math.abs(point.x - start.x),
+      height: Math.abs(point.y - start.y),
+    };
+    drawAreaRect('left');
+  });
+
+  const rightCanvas = document.querySelector('[data-area-canvas="right"]');
+  rightCanvas?.addEventListener('pointerdown', (event) => {
+    if (!areaState.right || !areaState.targetRect) return;
+    event.preventDefault();
+    const point = clientPointToImage(rightCanvas, areaState.right, event);
+    const rect = areaState.targetRect;
+    const nearCorner = Math.abs(point.x - (rect.x + rect.width)) < 30 && Math.abs(point.y - (rect.y + rect.height)) < 30;
+    areaState.active = { side: 'right', mode: nearCorner ? 'resize' : 'move', start: point, original: { ...rect } };
+    rightCanvas.setPointerCapture?.(event.pointerId);
+  });
+  rightCanvas?.addEventListener('pointermove', (event) => {
+    if (areaState.active?.side !== 'right' || !areaState.right) return;
+    const point = clientPointToImage(rightCanvas, areaState.right, event);
+    const { start, original, mode } = areaState.active;
+    if (mode === 'move') {
+      areaState.targetRect = clampAreaRect({ ...original, x: original.x + point.x - start.x, y: original.y + point.y - start.y }, areaState.right);
+    } else {
+      areaState.targetRect = clampAreaRect({ ...original, width: original.width + point.x - start.x, height: original.height + point.y - start.y }, areaState.right);
+    }
+    drawAreaRect('right');
+  });
+
+  document.addEventListener('pointerup', () => {
+    areaState.active = null;
+  });
+}
+
+async function requestAreaPreview(form) {
+  areaState.form = form;
+  areaOpen();
+  areaSetStatus('Готовлю предпросмотр...');
+  const response = await fetch('/area-preview', { method: 'POST', body: areaFormData() });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || 'Не удалось подготовить область');
+  setAreaImages(payload);
+}
+
+async function detectArea() {
+  if (!areaState.sourceRect) {
+    areaSetStatus('Сначала выделите область на исходном чертеже.');
+    return;
+  }
+  areaSetStatus('Ищу область на втором чертеже...');
+  const data = areaFormData();
+  appendRect(data, 'sourceRect', areaState.sourceRect);
+  const response = await fetch('/detect-area', { method: 'POST', body: data });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || 'Не удалось найти область');
+  areaState.sourceRect = payload.sourceRect;
+  areaState.targetRect = payload.targetRect;
+  drawAreaRect('left');
+  drawAreaRect('right');
+  document.querySelector('[data-area-compare]')?.removeAttribute('disabled');
+  const percent = Math.round((payload.confidence || 0) * 100);
+  areaSetStatus(`${payload.message || 'Область найдена.'} Уверенность: ${percent}%. При необходимости поправьте рамку справа.`);
+}
+
+async function compareArea() {
+  if (!areaState.sourceRect || !areaState.targetRect) return;
+  areaSetStatus('Сравниваю выбранную область...');
+  const data = areaFormData();
+  appendRect(data, 'sourceRect', areaState.sourceRect);
+  appendRect(data, 'targetRect', areaState.targetRect);
+  const response = await fetch('/compare-area', { method: 'POST', body: data, headers: { 'X-Requested-With': 'fetch' } });
+  const html = await response.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  replaceResultsAndErrors(doc);
+  areaClose();
+}
+
+function bindAreaMode() {
+  bindAreaSelection();
+  document.querySelectorAll('[data-area-mode]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const form = button.closest('form');
+      if (!form || !formHasSelectedFiles(form)) {
+        setInlineError('Нужно выбрать два PDF файла');
+        return;
+      }
+      try {
+        await requestAreaPreview(form);
+      } catch (error) {
+        setInlineError(error instanceof Error ? error.message : 'Не удалось открыть режим области');
+      }
+    });
+  });
+  document.querySelector('[data-area-close]')?.addEventListener('click', areaClose);
+  document.querySelector('[data-area-detect]')?.addEventListener('click', async () => {
+    try { await detectArea(); } catch (error) { areaSetStatus(error instanceof Error ? error.message : 'Не удалось найти область'); }
+  });
+  document.querySelector('[data-area-compare]')?.addEventListener('click', async () => {
+    try { await compareArea(); } catch (error) { areaSetStatus(error instanceof Error ? error.message : 'Не удалось сравнить область'); }
+  });
+}
+
 const viewerState = {
   scale: 1,
   offsetX: 0,
@@ -325,6 +529,7 @@ function init() {
   bindDropzones();
   bindResetButtons();
   bindCompareForm();
+  bindAreaMode();
   bindCompareSliders();
   bindPreviewButtons();
   bindPageNav();
