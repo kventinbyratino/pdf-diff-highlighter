@@ -15,6 +15,7 @@ from pdf_compare import (
     compare_pdf_area,
     compare_pdfs,
     find_matching_area,
+    RENDER_ZOOM,
 )
 
 COLORS = {
@@ -168,6 +169,7 @@ def make_area_pdf(path: Path, offset_x: float = 0, offset_y: float = 0, changed:
 
 
 def test_find_matching_area_detects_shifted_region():
+    scale = RENDER_ZOOM / 1.5
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         left = tmp_path / 'left.pdf'
@@ -178,16 +180,17 @@ def test_find_matching_area_detects_shifted_region():
         result = find_matching_area(
             str(left),
             str(right),
-            {'x': 120, 'y': 90, 'width': 260, 'height': 170},
+            {'x': int(round(120 * scale)), 'y': int(round(90 * scale)), 'width': int(round(260 * scale)), 'height': int(round(170 * scale))},
         )
 
     assert result['status'] in {'ok', 'low_confidence'}
     assert result['confidence'] > 0.65
-    assert abs(result['targetRect']['x'] - 172) <= 20
-    assert abs(result['targetRect']['y'] - 128) <= 20
+    assert abs(result['targetRect']['x'] - round(172 * scale)) <= 35
+    assert abs(result['targetRect']['y'] - round(128 * scale)) <= 35
 
 
 def test_compare_pdf_area_returns_single_area_result():
+    scale = RENDER_ZOOM / 1.5
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         left = tmp_path / 'left.pdf'
@@ -198,8 +201,8 @@ def test_compare_pdf_area_returns_single_area_result():
         result = compare_pdf_area(
             str(left),
             str(right),
-            source_rect={'x': 120, 'y': 90, 'width': 260, 'height': 170},
-            target_rect={'x': 172, 'y': 128, 'width': 260, 'height': 170},
+            source_rect={'x': int(round(120 * scale)), 'y': int(round(90 * scale)), 'width': int(round(260 * scale)), 'height': int(round(170 * scale))},
+            target_rect={'x': int(round(172 * scale)), 'y': int(round(128 * scale)), 'width': int(round(260 * scale)), 'height': int(round(170 * scale))},
             precision=50,
         )
 

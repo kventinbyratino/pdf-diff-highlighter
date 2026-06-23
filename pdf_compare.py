@@ -11,6 +11,10 @@ from PIL import Image, ImageChops, ImageFilter, ImageStat
 import cv2
 import numpy as np
 
+RENDER_ZOOM = 3.0
+DIFF_MASK_OPACITY = 0.8
+DIFF_MASK_FEATHER_RADIUS = 1.2
+
 
 @dataclass
 class TextChange:
@@ -38,7 +42,7 @@ def _img_to_b64(img: Image.Image) -> str:
     return base64.b64encode(buf.getvalue()).decode('ascii')
 
 
-def _render_page(page: fitz.Page, zoom: float = 1.5) -> Image.Image:
+def _render_page(page: fitz.Page, zoom: float = RENDER_ZOOM) -> Image.Image:
     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
     return Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
 
@@ -245,9 +249,12 @@ def _compare_rendered_pages(left: Image.Image, right: Image.Image, precision: in
         return right.copy(), '', False
 
     mask = mask.filter(ImageFilter.MaxFilter(3))
-    highlight = Image.new('RGB', left.size, 'red')
-    marked = Image.composite(highlight, right, mask)
-    return marked, f'визуальные изменения: mean diff={mean:.2f}, threshold={threshold}', True
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=DIFF_MASK_FEATHER_RADIUS))
+    alpha_mask = mask.point(lambda p: int(round(p * DIFF_MASK_OPACITY)))
+    overlay = Image.new('RGBA', right.size, (255, 0, 0, 0))
+    overlay.putalpha(alpha_mask)
+    marked = Image.alpha_composite(right.convert('RGBA'), overlay).convert('RGB')
+    return marked, f'визуальные изменения: mean diff={mean:.2f}, threshold={threshold}, opacity={DIFF_MASK_OPACITY}', True
 
 
 def _missing_page(page_number: int, *, missing_left: bool, missing_right: bool) -> PageComparison:
