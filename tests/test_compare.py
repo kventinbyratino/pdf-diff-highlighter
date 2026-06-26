@@ -4,8 +4,10 @@ import tempfile
 from pathlib import Path
 import base64
 import io
+import json
 
 import fitz
+import pytest
 from PIL import Image
 
 from app import app
@@ -23,6 +25,20 @@ COLORS = {
     'red': (1, 0, 0),
     'green': (0, 0.6, 0),
 }
+
+
+@pytest.fixture(autouse=True)
+def isolated_usage_metrics(tmp_path):
+    old_path = app.config.get('USAGE_METRICS_PATH')
+    metrics_path = tmp_path / 'usage_metrics.json'
+    metrics_path.unlink(missing_ok=True)
+    app.config['USAGE_METRICS_PATH'] = str(metrics_path)
+    yield
+    metrics_path.unlink(missing_ok=True)
+    if old_path is None:
+        app.config.pop('USAGE_METRICS_PATH', None)
+    else:
+        app.config['USAGE_METRICS_PATH'] = old_path
 
 
 def count_red_pixels(image: Image.Image) -> int:
@@ -109,6 +125,10 @@ def test_home_page_contains_pdf_only_controls():
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    assert 'Воспользовались сервисом' in html
+    assert 'Сравнили чертежей' in html
+    assert 'data-usage-users' in html
+    assert 'data-usage-comparisons' in html
     assert 'name="pdf1"' in html
     assert 'name="pdf2"' in html
     assert 'name="precision"' in html
@@ -148,6 +168,40 @@ def test_compare_route_renders_before_after_slider():
     assert 'Полноэкранный просмотр' in html
     assert 'Скачать PNG' not in html
     assert 'pages-sidebar' not in html
+    assert 'data-usage-comparisons>1</strong>' in html
+
+
+def test_usage_metrics_count_unique_clients_and_successful_comparisons():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        left = tmp_path / 'left.pdf'
+        right = tmp_path / 'right.pdf'
+        make_pdf(left, [('Hello A', 'blue')])
+        make_pdf(right, [('Hello B', 'red')])
+
+        first_client = app.test_client()
+        second_client = app.test_client()
+        first_home = first_client.get('/').get_data(as_text=True)
+        second_home = second_client.get('/').get_data(as_text=True)
+
+        assert 'data-usage-users>' in first_home
+        assert 'data-usage-users>' in second_home
+        state = json.loads(Path(app.config['USAGE_METRICS_PATH']).read_text(encoding='utf-8'))
+        assert len(state['visitors']) >= 2
+
+        with left.open('rb') as left_file, right.open('rb') as right_file:
+            response = first_client.post(
+                '/compare',
+                data={'pdf1': (left_file, 'left.pdf'), 'pdf2': (right_file, 'right.pdf')},
+                content_type='multipart/form-data',
+            )
+
+    html = response.get_data(as_text=True)
+    state = json.loads(Path(app.config['USAGE_METRICS_PATH']).read_text(encoding='utf-8'))
+    assert response.status_code == 200
+    assert len(state['visitors']) >= 2
+    assert state['comparisons'] == 1
+    assert 'data-usage-comparisons>1</strong>' in html
 
 
 def test_compare_overlay_shows_mask_on_right_side():

@@ -51,7 +51,16 @@ function setInlineError(message) {
   document.querySelector('.hero')?.insertAdjacentElement('afterend', error);
 }
 
+function syncUsageMetrics(doc) {
+  const nextMetrics = doc.querySelector('.usage-metrics');
+  const currentMetrics = document.querySelector('.usage-metrics');
+  if (nextMetrics && currentMetrics) currentMetrics.replaceWith(nextMetrics);
+  else if (nextMetrics) document.querySelector('.hero')?.insertAdjacentElement('afterend', nextMetrics);
+}
+
 function replaceResultsAndErrors(doc) {
+  syncUsageMetrics(doc);
+
   const nextError = doc.querySelector('.error');
   const currentError = document.querySelector('.error');
   if (nextError) {

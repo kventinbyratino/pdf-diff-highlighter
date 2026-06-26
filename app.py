@@ -4,9 +4,10 @@ import os
 import tempfile
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, make_response, render_template, request
 
 from pdf_compare import compare_pdf_area, compare_pdfs, find_matching_area, render_pdf_page_preview
+from usage_metrics import record_comparison, record_visit, resolve_visitor_id
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
@@ -24,13 +25,19 @@ def _parse_precision() -> int:
 
 
 def _render_home(**context):
+    visitor_id, needs_cookie = resolve_visitor_id(request)
+    usage_metrics = context.pop('usage_metrics', None) or record_visit(app, visitor_id)
     defaults = {
         'pdf_result': None,
         'error': None,
         'precision': DEFAULT_PRECISION,
+        'usage_metrics': usage_metrics,
     }
     defaults.update(context)
-    return render_template('index.html', **defaults)
+    response = make_response(render_template('index.html', **defaults))
+    if needs_cookie:
+        response.set_cookie('pdf_diff_visitor', visitor_id, max_age=60 * 60 * 24 * 365 * 2, samesite='Lax')
+    return response
 
 
 def _save_pair(tmpdir: str):
@@ -112,7 +119,8 @@ def compare_area():
                 page_index=_parse_page(),
                 precision=precision,
             )
-        return _render_home(pdf_result=pdf_result, precision=precision)
+        usage_metrics = record_comparison(app, resolve_visitor_id(request)[0])
+        return _render_home(pdf_result=pdf_result, precision=precision, usage_metrics=usage_metrics)
     except Exception as exc:
         return _render_home(error=str(exc), precision=precision)
 
@@ -133,7 +141,8 @@ def compare_pdf():
         right.save(right_path)
         pdf_result = compare_pdfs(str(left_path), str(right_path), precision=precision)
 
-    return _render_home(pdf_result=pdf_result, precision=precision)
+    usage_metrics = record_comparison(app, resolve_visitor_id(request)[0])
+    return _render_home(pdf_result=pdf_result, precision=precision, usage_metrics=usage_metrics)
 
 
 if __name__ == '__main__':

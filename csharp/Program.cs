@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using Docnet.Core;
 using Docnet.Core.Models;
 using Docnet.Core.Readers;
@@ -9,9 +10,14 @@ var app = WebApplication.CreateBuilder(args).Build();
 
 app.UseStaticFiles();
 
-app.MapGet("/", () => Results.Content(Html.IndexPage(), "text/html; charset=utf-8"));
+app.MapGet("/", (HttpRequest request, HttpResponse response) =>
+{
+    var visitor = UsageMetrics.ResolveVisitor(request, response);
+    var metrics = UsageMetrics.RecordVisit(visitor);
+    return Results.Content(Html.IndexPage(metrics), "text/html; charset=utf-8");
+});
 
-app.MapPost("/compare", async (HttpRequest request) =>
+app.MapPost("/compare", async (HttpRequest request, HttpResponse response) =>
 {
     var form = await request.ReadFormAsync();
     var left = form.Files.GetFile("pdf1");
@@ -19,7 +25,11 @@ app.MapPost("/compare", async (HttpRequest request) =>
     var precision = ParsePrecision(form["precision"].ToString());
 
     if (left is null || right is null)
-        return Results.Content(Html.IndexPage("Нужно выбрать два PDF файла", precision), "text/html; charset=utf-8");
+    {
+        var visitor = UsageMetrics.ResolveVisitor(request, response);
+        var metrics = UsageMetrics.RecordVisit(visitor);
+        return Results.Content(Html.IndexPage(metrics, "Нужно выбрать два PDF файла", precision), "text/html; charset=utf-8");
+    }
 
     var tmp = Path.Combine(Path.GetTempPath(), "pdf-diff-highlighter-csharp", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(tmp);
@@ -32,7 +42,9 @@ app.MapPost("/compare", async (HttpRequest request) =>
         await using (var s = File.Create(rightPath)) await right.CopyToAsync(s);
 
         var result = PdfComparator.Compare(leftPath, rightPath, precision);
-        return Results.Content(Html.ResultPage(result), "text/html; charset=utf-8");
+        var visitor = UsageMetrics.ResolveVisitor(request, response);
+        var metrics = UsageMetrics.RecordComparison(visitor);
+        return Results.Content(Html.ResultPage(result, metrics), "text/html; charset=utf-8");
     }
     finally
     {
@@ -48,6 +60,80 @@ static int ParsePrecision(string? raw)
 }
 
 app.Run();
+
+static class UsageMetrics
+{
+    private static readonly object Gate = new();
+    private static readonly string StorePath = Path.Combine(AppContext.BaseDirectory, "usage_metrics.json");
+    private const string CookieName = "pdf_diff_visitor";
+
+    public static string ResolveVisitor(HttpRequest request, HttpResponse response)
+    {
+        if (request.Cookies.TryGetValue(CookieName, out var existing) && !string.IsNullOrWhiteSpace(existing))
+            return existing;
+
+        var visitor = Guid.NewGuid().ToString("N");
+        response.Cookies.Append(CookieName, visitor, new CookieOptions
+        {
+            MaxAge = TimeSpan.FromDays(730),
+            SameSite = SameSiteMode.Lax,
+            IsEssential = true
+        });
+        return visitor;
+    }
+
+    public static UsageMetricsSnapshot RecordVisit(string visitor)
+    {
+        lock (Gate)
+        {
+            var state = Read();
+            state.Visitors.Add(visitor);
+            Write(state);
+            return state.ToSnapshot();
+        }
+    }
+
+    public static UsageMetricsSnapshot RecordComparison(string visitor)
+    {
+        lock (Gate)
+        {
+            var state = Read();
+            state.Visitors.Add(visitor);
+            state.Comparisons += 1;
+            Write(state);
+            return state.ToSnapshot();
+        }
+    }
+
+    private static UsageMetricsState Read()
+    {
+        try
+        {
+            if (!File.Exists(StorePath)) return new UsageMetricsState();
+            var state = JsonSerializer.Deserialize<UsageMetricsState>(File.ReadAllText(StorePath));
+            return state ?? new UsageMetricsState();
+        }
+        catch
+        {
+            return new UsageMetricsState();
+        }
+    }
+
+    private static void Write(UsageMetricsState state)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(StorePath)!);
+        File.WriteAllText(StorePath, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+    }
+}
+
+record UsageMetricsState
+{
+    public HashSet<string> Visitors { get; init; } = [];
+    public int Comparisons { get; set; }
+    public UsageMetricsSnapshot ToSnapshot() => new(Visitors.Count, Comparisons);
+}
+
+record UsageMetricsSnapshot(int UniqueUsers, int Comparisons);
 
 static class PdfComparator
 {
@@ -190,7 +276,7 @@ static class PdfComparator
 
 static class Html
 {
-    public static string IndexPage(string? error = null, int precision = 50) => $"""
+    public static string IndexPage(UsageMetricsSnapshot metrics, string? error = null, int precision = 50) => $"""
 <!doctype html>
 <html lang="ru">
 <head>
@@ -206,6 +292,8 @@ static class Html
       <h1>Сравнение PDF чертежей</h1>
       <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
     </section>
+
+    {UsageBlock(metrics)}
 
     {Error(error)}
 
@@ -279,7 +367,7 @@ static class Html
 </html>
 """;
 
-    public static string ResultPage(ComparisonResult result)
+    public static string ResultPage(ComparisonResult result, UsageMetricsSnapshot metrics)
     {
         return $"""
 <!doctype html>
@@ -297,6 +385,8 @@ static class Html
       <h1>Сравнение PDF чертежей</h1>
       <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
     </section>
+
+    {UsageBlock(metrics)}
 
     <section class="workspace">
       <form method="post" action="/compare" enctype="multipart/form-data" class="card panel" id="compare-form">
@@ -389,6 +479,19 @@ static class Html
         }
         return sb.ToString();
     }
+
+    private static string UsageBlock(UsageMetricsSnapshot metrics) => $"""
+<section class="usage-metrics card" aria-label="Статистика сервиса">
+  <div class="usage-metric">
+    <span class="usage-metric-label">Воспользовались сервисом</span>
+    <strong class="usage-metric-value" data-usage-users>{metrics.UniqueUsers}</strong>
+  </div>
+  <div class="usage-metric">
+    <span class="usage-metric-label">Сравнили чертежей</span>
+    <strong class="usage-metric-value" data-usage-comparisons>{metrics.Comparisons}</strong>
+  </div>
+</section>
+""";
 
     private static string Viewer() => """
 <div id="viewer" class="viewer hidden" aria-hidden="true">
