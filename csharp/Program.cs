@@ -483,10 +483,6 @@ static class Html
     private static string UsageBlock(UsageMetricsSnapshot metrics) => $"""
 <section class="usage-metrics card" aria-label="Статистика сервиса">
   <div class="usage-metric">
-    <span class="usage-metric-label">Воспользовались сервисом</span>
-    <strong class="usage-metric-value" data-usage-users>{metrics.UniqueUsers}</strong>
-  </div>
-  <div class="usage-metric">
     <span class="usage-metric-label">Сравнили чертежей</span>
     <strong class="usage-metric-value" data-usage-comparisons>{metrics.Comparisons}</strong>
   </div>

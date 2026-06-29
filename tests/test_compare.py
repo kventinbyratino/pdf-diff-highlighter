@@ -125,9 +125,8 @@ def test_home_page_contains_pdf_only_controls():
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert 'Воспользовались сервисом' in html
     assert 'Сравнили чертежей' in html
-    assert 'data-usage-users' in html
+    assert 'data-usage-users' not in html
     assert 'data-usage-comparisons' in html
     assert 'name="pdf1"' in html
     assert 'name="pdf2"' in html
@@ -184,8 +183,8 @@ def test_usage_metrics_count_unique_clients_and_successful_comparisons():
         first_home = first_client.get('/').get_data(as_text=True)
         second_home = second_client.get('/').get_data(as_text=True)
 
-        assert 'data-usage-users>' in first_home
-        assert 'data-usage-users>' in second_home
+        assert 'data-usage-users' not in first_home
+        assert 'data-usage-users' not in second_home
         state = json.loads(Path(app.config['USAGE_METRICS_PATH']).read_text(encoding='utf-8'))
         assert len(state['visitors']) >= 2
 
