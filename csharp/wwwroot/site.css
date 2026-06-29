@@ -46,11 +46,9 @@ body {
 
 .usage-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
   margin-bottom: 14px;
-  background: var(--line);
 }
 
 .usage-metric {

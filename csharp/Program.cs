@@ -55,7 +55,7 @@ app.MapPost("/compare", async (HttpRequest request, HttpResponse response) =>
 static int ParsePrecision(string? raw)
 {
     if (!int.TryParse(raw, out var precision))
-        return 50;
+        return 10;
     return Math.Clamp(precision, 1, 100);
 }
 
@@ -276,7 +276,7 @@ static class PdfComparator
 
 static class Html
 {
-    public static string IndexPage(UsageMetricsSnapshot metrics, string? error = null, int precision = 50) => $"""
+    public static string IndexPage(UsageMetricsSnapshot metrics, string? error = null, int precision = 10) => $"""
 <!doctype html>
 <html lang="ru">
 <head>

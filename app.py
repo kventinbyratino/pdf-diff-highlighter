@@ -12,7 +12,7 @@ from usage_metrics import record_comparison, record_visit, resolve_visitor_id
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
-DEFAULT_PRECISION = 50
+DEFAULT_PRECISION = 10
 
 
 def _parse_precision() -> int:

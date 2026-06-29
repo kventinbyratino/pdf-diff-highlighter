@@ -128,6 +128,7 @@ def test_home_page_contains_pdf_only_controls():
     assert 'Сравнили чертежей' in html
     assert 'data-usage-users' not in html
     assert 'data-usage-comparisons' in html
+    assert 'value="10"' in html
     assert 'name="pdf1"' in html
     assert 'name="pdf2"' in html
     assert 'name="precision"' in html
