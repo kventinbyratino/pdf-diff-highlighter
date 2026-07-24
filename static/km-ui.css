@@ -1,0 +1,179 @@
+/* KM UI alternative skin for the existing PDF Diff functionality. */
+:root {
+  --km-paper: #f4f4f2;
+  --km-white: #ffffff;
+  --km-ink: #121212;
+  --km-muted: #696966;
+  --km-line: #c9c9c3;
+  --km-soft: #e8e8e3;
+  --km-shadow: 4px 4px 0 rgba(18, 18, 18, 0.14);
+}
+
+.ui-switcher {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--line, #d4d4d4);
+  background: var(--panel, #fff);
+}
+.ui-switcher a {
+  width: 13px;
+  min-height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-right: 1px solid var(--line, #d4d4d4);
+  color: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.ui-switcher a:last-child { border-right: 0; }
+.ui-switcher a.is-active { color: #fff; background: var(--text, #050505); }
+.ui-switcher a::before { content: ""; width: 4px; height: 4px; border: 1px solid currentColor; background: transparent; }
+.ui-switcher a.is-active::before { background: currentColor; }
+
+body.km-ui {
+  --bg: var(--km-paper);
+  --panel: rgba(244, 244, 242, 0.96);
+  --panel-soft: var(--km-soft);
+  --line: var(--km-line);
+  --line-strong: var(--km-ink);
+  --text: var(--km-ink);
+  --muted: var(--km-muted);
+  background:
+    linear-gradient(rgba(18,18,18,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18,18,18,.035) 1px, transparent 1px),
+    var(--km-paper);
+  background-size: 48px 48px;
+  font-family: "IBM Plex Sans", Arial, system-ui, sans-serif;
+}
+
+.km-ui .wrap {
+  max-width: 1280px;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "hero"
+    "metrics"
+    "form"
+    "results"
+    "switch";
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+  margin: 0 auto;
+}
+.km-ui .ui-switcher {
+  grid-area: switch;
+  justify-self: end;
+  margin: 2px 0 0;
+  border-color: var(--km-ink);
+  box-shadow: var(--km-shadow);
+}
+.km-ui .ui-switcher a.is-active { background: var(--km-ink); }
+
+.km-ui .card,
+.km-ui .error {
+  border: 1px solid var(--km-ink);
+  border-radius: 0;
+  box-shadow: var(--km-shadow);
+}
+.km-ui .hero {
+  grid-area: hero;
+  min-height: 124px;
+  padding: 16px 18px;
+  background: var(--km-paper);
+  box-shadow: var(--km-shadow);
+}
+.km-ui .hero .eyebrow {
+  margin-bottom: 10px;
+  font: 500 11px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .12em;
+}
+.km-ui h1 {
+  max-width: none;
+  margin-bottom: 10px;
+  font-size: clamp(38px, 4.5vw, 56px);
+  line-height: 1.02;
+  letter-spacing: -.045em;
+  overflow-wrap: normal;
+}
+.km-ui .lead { max-width: 640px; }
+
+.km-ui .usage-metrics { grid-area: metrics; margin: 0; padding: 0; background: var(--km-white); }
+.km-ui .usage-metric { min-height: 82px; padding: 14px 16px; border-radius: 0; align-items: start; }
+.km-ui .usage-metric-label { font-size: 12px; }
+.km-ui .usage-metric-value { font-size: clamp(2.2rem, 3.6vw, 3.1rem); line-height: .95; }
+
+.km-ui .workspace { grid-area: form; }
+.km-ui .panel { padding: 14px; background: rgba(244,244,242,.96); }
+.km-ui .upload-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.km-ui .slot-card {
+  min-height: 166px;
+  border-color: var(--km-ink);
+  border-radius: 0;
+  background: var(--km-white);
+}
+.km-ui .slot-card:hover,
+.km-ui .slot-card.has-file,
+.km-ui .slot-card.dragover {
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--km-ink);
+}
+.km-ui .dropzone-art { inset: 34px 0 auto; width: 64px; margin: 0 auto; border: 1px solid var(--km-ink); background: var(--km-soft); }
+.km-ui .slot-status { left: 14px; right: 14px; top: auto; bottom: 18px; text-align: center; font-weight: 800; }
+.km-ui .slot-clear { border-radius: 0; border-color: var(--km-ink); }
+
+.km-ui .precision-row,
+.km-ui .alignment-option,
+.km-ui .job-progress {
+  border-color: var(--km-ink);
+  border-radius: 0;
+  background: var(--km-white);
+}
+.km-ui .precision-input { accent-color: var(--km-ink); }
+.km-ui .form-actions { grid-template-columns: 1fr 1fr; }
+.km-ui .form-actions button { border-radius: 0; border-color: var(--km-ink); font-weight: 800; }
+.km-ui .form-actions button[data-compare-submit] { grid-column: 1 / -1; background: var(--km-ink); color: #fff; }
+
+.km-ui .results-card { grid-area: results; margin: 0; background: rgba(244,244,242,.96); }
+.km-ui .result-head,
+.km-ui .pages-sidebar-head,
+.km-ui .page-head { border-color: var(--km-ink); }
+.km-ui .results-body-with-sidebar { grid-template-columns: 260px minmax(0, 1fr); }
+.km-ui .pages-sidebar,
+.km-ui .page { border-radius: 0; border-color: var(--km-ink); background: var(--km-white); }
+.km-ui .page-nav-btn,
+.km-ui .slot-actions a,
+.km-ui .slot-actions button { border-radius: 0; border-color: var(--km-ink); }
+.km-ui .page-nav-btn.is-active { color: #fff; background: var(--km-ink); }
+.km-ui .compare-stage,
+.km-ui .incompatible-size,
+.km-ui .area-dialog { border-radius: 0; border-color: var(--km-ink); }
+.km-ui .viewer-download,
+.km-ui .viewer-close,
+.km-ui .secondary,
+.km-ui button { border-radius: 0; }
+
+@media (max-width: 980px) {
+  .km-ui .wrap {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "hero"
+      "metrics"
+      "form"
+      "results"
+      "switch";
+    padding: 8px;
+    gap: 8px;
+  }
+  .km-ui h1 { max-width: none; font-size: clamp(34px, 11vw, 58px); }
+  .km-ui .upload-grid { grid-template-columns: 1fr; }
+  .km-ui .results-body-with-sidebar { grid-template-columns: 1fr; }
+  .km-ui .dropzone-art { position: static; margin: 16px auto 4px; }
+  .km-ui .slot-status { position: static; display: block; padding: 8px 12px 12px; text-align: center; }
+}

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сравнение PDF чертежей</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body data-ui-mode="classic">
+  <main class="wrap">
+
+    <section class="hero card">
+      <div class="eyebrow">PDF diff</div>
+      <h1>Сравнение PDF чертежей</h1>
+      <p class="lead">Загрузите два PDF, настройте точность и сравните исходный лист с маской изменений.</p>
+    </section>
+
+    <section class="usage-metrics card" aria-label="Статистика сервиса">
+      <div class="usage-metric">
+        <span class="usage-metric-label">Сравнили чертежей</span>
+        <strong class="usage-metric-value" data-usage-comparisons>{{ usage_metrics.comparisons }}</strong>
+      </div>
+    </section>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <section class="workspace">
+      <form method="post" action="compare" enctype="multipart/form-data" class="card panel">
+        <div class="upload-grid">
+          <section class="slot-card dropzone" data-target="pdf1">
+            <button type="button" class="slot-clear" data-clear-file="pdf1" aria-label="Удалить чертеж 1" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
+            <label class="upload-field" for="pdf1">
+              <span class="sr-only">Выбрать PDF 1</span>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </span>
+              <span class="slot-status" data-upload-status="pdf1">Чертеж 1 — статус: не загружен</span>
+              <input type="file" id="pdf1" name="pdf1" accept="application/pdf" required class="file-input">
+            </label>
+          </section>
+
+          <section class="slot-card dropzone" data-target="pdf2">
+            <button type="button" class="slot-clear" data-clear-file="pdf2" aria-label="Удалить чертеж 2" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 7h16"></path>
+                <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"></path>
+                <path d="M8 7l1 12h6l1-12"></path>
+                <path d="M10 11v5M14 11v5"></path>
+              </svg>
+            </button>
+            <label class="upload-field" for="pdf2">
+              <span class="sr-only">Выбрать PDF 2</span>
+              <span class="dropzone-art" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false" aria-hidden="true">
+                  <rect x="14" y="10" width="26" height="18" rx="3"></rect>
+                  <rect x="24" y="20" width="26" height="18" rx="3"></rect>
+                  <path d="M31 30v10M26 35h10"></path>
+                </svg>
+              </span>
+              <span class="slot-status" data-upload-status="pdf2">Чертеж 2 — статус: не загружен</span>
+              <input type="file" id="pdf2" name="pdf2" accept="application/pdf" required class="file-input">
+            </label>
+          </section>
+        </div>
+
+        <div class="precision-row">
+          <label for="precision">Точность сравнения</label>
+          <output class="precision-value" for="precision">{{ precision or 10 }}</output>
+          <input id="precision" class="precision-input" name="precision" type="range" min="1" max="100" value="{{ precision or 10 }}">
+          <p class="control-help">1 — меньше реакции на шум рендера; 100 — видны самые малые пиксельные отличия. Настройка не управляет выравниванием.</p>
+        </div>
+
+        <label class="alignment-option" for="align-pages">
+          <input id="align-pages" name="align_pages" type="checkbox" {% if align_pages %}checked{% endif %}>
+          <span>
+            <strong>Выровнять листы перед сравнением</strong>
+            <small>Исправляет небольшой общий сдвиг, масштаб или поворот только при высокой уверенности. По умолчанию выключено.</small>
+          </span>
+        </label>
+
+        <div class="form-actions">
+          <button type="button" class="secondary" data-reset-all>Сбросить</button>
+          <button type="button" class="secondary" data-area-mode>Сравнить область</button>
+          <button type="submit" data-compare-submit>Сравнить</button>
+        </div>
+
+        <section class="job-progress hidden" data-job-progress aria-live="polite" aria-atomic="true" tabindex="-1">
+          <div class="job-progress-head">
+            <div>
+              <strong data-job-stage>Подготавливаю задачу</strong>
+              <p data-job-message>Сохраняю файлы для сравнения.</p>
+            </div>
+            <output data-job-percent>0%</output>
+          </div>
+          <progress data-job-progress-bar max="100" value="0">0%</progress>
+          <p class="job-queue-message" data-job-queue hidden></p>
+          <button type="button" class="secondary job-cancel" data-job-cancel>Отменить сравнение</button>
+        </section>
+      </form>
+    </section>
+
+    {% if pdf_result %}
+      <section class="card results-card">
+        <header class="result-head">
+          <div>
+            <div class="eyebrow">Результат</div>
+            <h2>Сравнение листов</h2>
+          </div>
+        </header>
+
+        <div class="results-body {% if pdf_result.pages|length > 1 %}results-body-with-sidebar{% endif %}">
+          {% if pdf_result.pages|length > 1 %}
+            <aside class="pages-sidebar" aria-label="Меню листов">
+              <div class="pages-sidebar-head">
+                <div class="eyebrow">Листы</div>
+                <h3>Меню листов</h3>
+              </div>
+              <nav class="page-nav page-nav-vertical" aria-label="Страницы PDF">
+                {% for p in pdf_result.pages %}
+                  <button type="button" class="page-nav-btn" data-page-target="page-{{ p.page_number }}" aria-label="Перейти к странице {{ p.page_number }}">
+                    <span class="page-nav-index">{{ p.page_number }}</span>
+                    <span class="page-nav-label">Лист {{ p.page_number }}</span>
+                  </button>
+                {% endfor %}
+              </nav>
+            </aside>
+          {% endif %}
+
+          <div class="results-pages">
+            {% for p in pdf_result.pages %}
+              <article class="page card" id="page-{{ p.page_number }}">
+                <div class="page-head">
+                  <h3>Страница {{ p.page_number }}</h3>
+                </div>
+
+                {% if p.alignment_summary or p.normalized_page_size or p.text_comparison_skipped %}
+                  <div class="page-status-list" aria-label="Параметры сравнения">
+                    {% if p.alignment_summary %}<p>{{ p.alignment_summary }}</p>{% endif %}
+                    {% if p.normalized_page_size %}<p>Размер страницы нормализован перед сравнением.</p>{% endif %}
+                    {% if p.text_comparison_skipped %}<p>Текстовое сравнение пропущено: текст удалось извлечь только из одного PDF.</p>{% endif %}
+                  </div>
+                {% endif %}
+
+                {% if p.incompatible_page_size and p.left_image_url and p.diff_image_url %}
+                  <section class="incompatible-size" aria-label="Несовместимые размеры страниц">
+                    <div class="page-note"><strong>Размеры страниц несовместимы.</strong> Маска изменений не строилась.</div>
+                    <div class="size-preview-grid">
+                      <figure>
+                        <figcaption>Исходный лист</figcaption>
+                        <img data-lazy-src="{{ p.left_image_url }}" width="{{ p.image_width }}" height="{{ p.image_height }}" alt="Исходный лист {{ p.page_number }}">
+                      </figure>
+                      <figure>
+                        <figcaption>Изменённый лист</figcaption>
+                        <img data-lazy-src="{{ p.diff_image_url }}" width="{{ p.diff_image_width }}" height="{{ p.diff_image_height }}" alt="Лист несовместимого размера {{ p.page_number }}">
+                      </figure>
+                    </div>
+                  </section>
+                {% elif p.left_image_url and p.diff_image_url %}
+                  <div class="page-compare" data-compare-slider>
+                    <div class="compare-caption" aria-hidden="true">
+                      <span>Исходный файл</span>
+                      <span>Маска изменений</span>
+                    </div>
+                    <div class="compare-stage" style="--split: 50%; --page-aspect: {{ p.image_width }} / {{ p.image_height }};">
+                      <img class="compare-layer compare-source" data-lazy-src="{{ p.left_image_url }}" width="{{ p.image_width }}" height="{{ p.image_height }}" alt="Исходный лист {{ p.page_number }}">
+                      <div class="compare-overlay">
+                        <img class="compare-layer compare-diff" data-lazy-src="{{ p.diff_image_url }}" width="{{ p.image_width }}" height="{{ p.image_height }}" alt="Маска изменений лист {{ p.page_number }}">
+                      </div>
+                      <div class="compare-loading" data-artifact-loading>Загружаю лист…</div>
+                      <div class="compare-divider" aria-hidden="true"></div>
+                      <input class="compare-range" data-compare-range type="range" min="0" max="100" value="50" aria-label="Бегунок сравнения страницы {{ p.page_number }}">
+                    </div>
+                    <div class="slot-actions">
+                      <a class="download" href="{{ p.diff_image_url }}" download="page-{{ p.page_number }}-diff.png">Скачать сравнение</a>
+                      <button type="button" class="preview-btn" data-viewer-src="{{ p.diff_image_url }}" data-download="page-{{ p.page_number }}-diff.png">Полноэкранный просмотр</button>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="page-note">{{ p.note or 'Сравнение недоступно для этой страницы' }}</div>
+                {% endif %}
+
+                {% if p.text_rows %}
+                  <details class="text-diff">
+                    <summary>Изменения текста: {{ p.text_rows|length }}</summary>
+                    <ul>
+                      {% for row in p.text_rows %}
+                        <li><strong>{{ row.kind }}:</strong> {{ row.source or row.changed }}</li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% endif %}
+              </article>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <nav class="ui-switcher" aria-label="Переключение интерфейса">
+      <a class="is-active" href="." aria-current="page" aria-label="Старый интерфейс" title="Старый интерфейс"></a>
+      <a href="?ui=km" aria-label="Новый KM интерфейс" title="Новый KM интерфейс"></a>
+    </nav>
+  </main>
+
+  <div id="area-modal" class="area-modal hidden" aria-hidden="true">
+    <div class="area-dialog card" role="dialog" aria-modal="true" aria-label="Сравнить область">
+      <header class="area-head">
+        <div>
+          <div class="eyebrow">Область</div>
+          <h2>Сравнить область</h2>
+        </div>
+        <button type="button" class="secondary" data-area-close>Закрыть</button>
+      </header>
+      <label class="area-page-picker" data-area-page-picker hidden>
+        <span>Лист для сравнения</span>
+        <select data-area-page aria-label="Лист для сравнения" disabled>
+          <option value="0">Лист 1</option>
+        </select>
+      </label>
+      <p class="area-status" data-area-status>Выделите область на исходном чертеже.</p>
+      <div class="area-grid">
+        <section>
+          <h3>Исходный файл</h3>
+          <div class="area-canvas" data-area-canvas="left">
+            <img alt="Исходный лист" data-area-image="left">
+            <div class="area-rect" data-area-rect="left" hidden></div>
+          </div>
+        </section>
+        <section>
+          <h3>Изменённый файл</h3>
+          <div class="area-canvas" data-area-canvas="right">
+            <img alt="Изменённый лист" data-area-image="right">
+            <div class="area-rect" data-area-rect="right" hidden></div>
+          </div>
+        </section>
+      </div>
+      <div class="area-actions">
+        <button type="button" class="secondary" data-area-detect>Найти область на втором</button>
+        <button type="button" data-area-compare disabled>Сравнить выбранную область</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewer" class="viewer hidden" aria-hidden="true">
+    <button id="viewer-close" class="viewer-close" type="button" aria-label="Закрыть">×</button>
+    <a id="viewer-download" class="viewer-download" download>Скачать</a>
+    <img id="viewer-img" alt="preview">
+  </div>
+
+  <script src="static/app.js"></script>
+</body>
+</html>
